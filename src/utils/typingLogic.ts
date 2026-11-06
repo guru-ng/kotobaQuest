@@ -45,6 +45,41 @@ const ROMAJI_TABLE: Record<string, string> = {
   '-': 'ー'
 };
 
+const ROMAJI_KEYS = Object.keys(ROMAJI_TABLE);
+const KANA_RE = /^[\u3040-\u30ff]$/;
+
+/**
+ * Matches one syllable at position i. Shared by the whole-string converter and
+ * the keystroke-by-keystroke converter so both behave identically.
+ */
+function matchRomajiAt(lower: string, i: number): { kana: string; length: number } {
+  // Check 3-char match first
+  const three = lower.substring(i, i + 3);
+  if (three.length === 3 && ROMAJI_TABLE[three]) return { kana: ROMAJI_TABLE[three], length: 3 };
+
+  // Check double consonant (e.g. "kk" -> "っk")
+  if (i + 1 < lower.length && lower[i] === lower[i + 1] && /[kstp]/.test(lower[i])) {
+    return { kana: 'っ', length: 1 };
+  }
+
+  // Check 2-char match
+  const two = lower.substring(i, i + 2);
+  if (two.length === 2 && ROMAJI_TABLE[two]) return { kana: ROMAJI_TABLE[two], length: 2 };
+
+  // Single 'n' before consonants (except vowels, y, or end of string)
+  if (lower[i] === 'n') {
+    const next = lower[i + 1];
+    if (!next || !/[aiueoyn]/.test(next)) return { kana: 'ん', length: 1 };
+  }
+
+  // Check 1-char match (vowels)
+  const one = lower.substring(i, i + 1);
+  if (ROMAJI_TABLE[one]) return { kana: ROMAJI_TABLE[one], length: 1 };
+
+  // If no match found, pass the raw character through
+  return { kana: lower[i], length: 1 };
+}
+
 /**
  * Converts a romaji string into hiragana progressively
  */
@@ -59,53 +94,46 @@ export function romajiToHiragana(romaji: string): string {
   let i = 0;
 
   while (i < lower.length) {
-    // Check 3-char match first
-    const three = lower.substring(i, i + 3);
-    if (ROMAJI_TABLE[three]) {
-      result += ROMAJI_TABLE[three];
-      i += 3;
-      continue;
-    }
-
-    // Check double consonant (e.g. "kk" -> "っk")
-    if (i + 1 < lower.length && lower[i] === lower[i + 1] && /[kstp]/.test(lower[i])) {
-      result += 'っ';
-      i += 1;
-      continue;
-    }
-
-    // Check 2-char match
-    const two = lower.substring(i, i + 2);
-    if (ROMAJI_TABLE[two]) {
-      result += ROMAJI_TABLE[two];
-      i += 2;
-      continue;
-    }
-
-    // Single 'n' before consonants (except vowels, y, or end of string)
-    if (lower[i] === 'n') {
-      const next = lower[i + 1];
-      if (!next || (!/[aiueoyn]/.test(next))) {
-        result += 'ん';
-        i += 1;
-        continue;
-      }
-    }
-
-    // Check 1-char match (vowels)
-    const one = lower.substring(i, i + 1);
-    if (ROMAJI_TABLE[one]) {
-      result += ROMAJI_TABLE[one];
-      i += 1;
-      continue;
-    }
-
-    // If no match found, append raw character
-    result += lower[i];
-    i += 1;
+    const { kana, length } = matchRomajiAt(lower, i);
+    result += kana;
+    i += length;
   }
 
   return result;
+}
+
+/** True while `rest` could still grow into a longer syllable: "k" → "ka", "n" → "na", "nn" → "nna". */
+function isIncompleteRomaji(rest: string): boolean {
+  return ROMAJI_KEYS.some(key => key.length > rest.length && key.startsWith(rest));
+}
+
+/**
+ * Keystroke-by-keystroke conversion for on-screen/physical romaji keyboards.
+ * Returns the kana that are final plus the romaji still waiting for more keys,
+ * so "n" waits (it may become な/に/にゃ) instead of turning into ん at once.
+ * Characters that can't form kana are dropped.
+ */
+export function stepRomajiInput(buffer: string): { kana: string[]; pending: string } {
+  const lower = buffer.toLowerCase();
+  const kana: string[] = [];
+  let i = 0;
+
+  while (i < lower.length) {
+    const rest = lower.slice(i);
+    if (isIncompleteRomaji(rest)) {
+      return { kana, pending: rest };
+    }
+    const match = matchRomajiAt(lower, i);
+    kana.push(...Array.from(match.kana).filter(ch => KANA_RE.test(ch)));
+    i += match.length;
+  }
+
+  return { kana, pending: '' };
+}
+
+/** Finalises romaji left in the buffer when the player submits (a trailing "n" becomes ん). */
+export function flushRomajiInput(pending: string): string[] {
+  return Array.from(romajiToHiragana(pending)).filter(ch => KANA_RE.test(ch));
 }
 
 /**

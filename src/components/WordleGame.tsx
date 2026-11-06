@@ -3,9 +3,22 @@ import confetti from 'canvas-confetti';
 import { WORDLE_WORDS } from '../data/wordleWords';
 import { NEPALI_WORDLE_MAP } from '../data/nepaliData';
 import { evaluateWordleGuess, isWordleWon, computeKeyboardStatus } from '../utils/wordleLogic';
-import { romajiToHiragana } from '../utils/typingLogic';
+import { flushRomajiInput, stepRomajiInput } from '../utils/typingLogic';
 import { getTranslation } from '../utils/i18n';
-import { WordleWord, WordleTileState } from '../types';
+import { JLPTLevel, WordleWord, WordleTileState } from '../types';
+import { localDateKey } from '../utils/dateUtils';
+import {
+  WordleGameStatus,
+  WordleMode,
+  buildWordleShareText,
+  getWordlePool,
+  loadWordleSlot,
+  pickDailyWord,
+  pickPracticeWord,
+  saveWordleSlot,
+  wordlePuzzleNumber,
+  wordleSlotKey
+} from '../utils/wordleDaily';
 import { useGame } from '../context/GameContext';
 import { playSuccessChime, playCardFlipSound, speakJapanese } from '../utils/audio';
 import { 
@@ -16,7 +29,8 @@ import {
   Lightbulb, 
   ArrowRight,
   Delete,
-  Keyboard
+  Keyboard,
+  Share2
 } from 'lucide-react';
 
 const MAX_ATTEMPTS = 6;
@@ -26,6 +40,43 @@ const QWERTY_ROWS = [
   ['A', 'S', 'D', 'F', 'G', 'H', 'J', 'K', 'L'],
   ['Z', 'X', 'C', 'V', 'B', 'N', 'M']
 ];
+
+interface ResolvedGame {
+  date: string;
+  slot: string;
+  length: 3 | 4;
+  mode: WordleMode;
+  word: WordleWord;
+  guesses: string[][];
+  status: WordleGameStatus;
+}
+
+/**
+ * Today's game for a level + length: the saved practice game if the player was
+ * in one, otherwise the daily puzzle (restoring any guesses already made today).
+ */
+function resolveGame(level: JLPTLevel, length: 3 | 4, forceDaily = false): ResolvedGame {
+  const date = localDateKey();
+  const slot = wordleSlotKey(level, length);
+  const pool = getWordlePool(WORDLE_WORDS, level, length);
+  const dailyWord = pickDailyWord(pool, date, slot) ?? WORDLE_WORDS[0];
+  const saved = loadWordleSlot(date, slot);
+  const validRows = (word: WordleWord, rows: string[][]) =>
+    rows.filter(row => row.length === Array.from(word.kana).length).slice(0, MAX_ATTEMPTS);
+
+  if (!forceDaily && saved?.mode === 'practice' && saved.practice) {
+    const word = pool.find(w => w.id === saved.practice!.wordId);
+    if (word) {
+      return { date, slot, length, mode: 'practice', word, guesses: validRows(word, saved.practice.guesses), status: saved.practice.status };
+    }
+  }
+
+  if (saved?.daily && saved.daily.wordId === dailyWord.id) {
+    return { date, slot, length, mode: 'daily', word: dailyWord, guesses: validRows(dailyWord, saved.daily.guesses), status: saved.daily.status };
+  }
+
+  return { date, slot, length, mode: 'daily', word: dailyWord, guesses: [], status: 'playing' };
+}
 
 const KANA_VOWEL_ROWS = [
   { label: 'A', chars: ['あ', 'か', 'さ', 'た', 'な', 'は', 'ま', 'や', 'ら', 'わ'] },
@@ -39,17 +90,17 @@ export const WordleGame: React.FC = () => {
   const { settings, currentJLPT, uiLanguage, toggleNepali, recordWordleWin, addXP } = useGame();
   const t = getTranslation(uiLanguage);
   
-  const [targetLength, setTargetLength] = useState<3 | 4>(3);
-  const [currentWord, setCurrentWord] = useState<WordleWord>(() => {
-    const levelPool = WORDLE_WORDS.filter(w => w.jlpt === currentJLPT && Array.from(w.kana).length === 3);
-    if (levelPool.length > 0) return levelPool[0];
-    const fallback = WORDLE_WORDS.filter(w => Array.from(w.kana).length === 3);
-    return fallback[0] || WORDLE_WORDS[0];
-  });
+  const [initialGame] = useState<ResolvedGame>(() => resolveGame(currentJLPT, 3));
+  const [targetLength, setTargetLength] = useState<3 | 4>(initialGame.length);
+  const [currentWord, setCurrentWord] = useState<WordleWord>(initialGame.word);
+  const [mode, setMode] = useState<WordleMode>(initialGame.mode);
+  const [slot, setSlot] = useState<string>(initialGame.slot);
+  const [gameDate, setGameDate] = useState<string>(initialGame.date);
+  const [shareFeedback, setShareFeedback] = useState<string | null>(null);
 
-  const [guesses, setGuesses] = useState<string[][]>([]);
+  const [guesses, setGuesses] = useState<string[][]>(initialGame.guesses);
   const [currentInput, setCurrentInput] = useState<string[]>([]);
-  const [gameStatus, setGameStatus] = useState<'playing' | 'won' | 'lost'>('playing');
+  const [gameStatus, setGameStatus] = useState<WordleGameStatus>(initialGame.status);
   const [showHint, setShowHint] = useState<boolean>(false);
   const [revealedResultModal, setRevealedResultModal] = useState<boolean>(false);
   const [romajiBuffer, setRomajiBuffer] = useState<string>('');
@@ -58,56 +109,95 @@ export const WordleGame: React.FC = () => {
 
   const targetChars = Array.from(currentWord.kana);
 
-  const startNewGame = useCallback((length: 3 | 4 = targetLength) => {
-    let pool = WORDLE_WORDS.filter(w => w.jlpt === currentJLPT && Array.from(w.kana).length === length);
-    if (pool.length === 0) {
-      pool = WORDLE_WORDS.filter(w => Array.from(w.kana).length === length);
-    }
-    // Try to pick a different word than the current one if pool has > 1
-    const candidates = pool.length > 1 ? pool.filter(w => w.id !== currentWord.id) : pool;
-    const randomIndex = Math.floor(Math.random() * candidates.length);
-    const chosen = candidates[randomIndex] || pool[0];
-    
-    setTargetLength(length);
-    setCurrentWord(chosen);
-    setGuesses([]);
+  const applyGame = useCallback((game: ResolvedGame) => {
+    setTargetLength(game.length);
+    setCurrentWord(game.word);
+    setMode(game.mode);
+    setSlot(game.slot);
+    setGameDate(game.date);
+    setGuesses(game.guesses);
+    setGameStatus(game.status);
     setCurrentInput([]);
-    setGameStatus('playing');
     setShowHint(false);
     setRevealedResultModal(false);
     setRomajiBuffer('');
     setImgError(false);
-  }, [targetLength, currentJLPT, currentWord.id]);
+    setShareFeedback(null);
+  }, []);
 
-  // Update puzzle when currentJLPT changes
+  // Switching length (or level) opens that combination's daily puzzle / saved game
+  const selectLength = (length: 3 | 4) => applyGame(resolveGame(currentJLPT, length));
+
+  const backToDaily = () => applyGame(resolveGame(currentJLPT, targetLength, true));
+
+  // "New puzzle" / "Next word": a random practice word (not today's daily)
+  const startNewGame = () => {
+    const date = localDateKey();
+    const practiceSlot = wordleSlotKey(currentJLPT, targetLength);
+    const pool = getWordlePool(WORDLE_WORDS, currentJLPT, targetLength);
+    const daily = pickDailyWord(pool, date, practiceSlot);
+    const avoid = [currentWord.id, ...(daily ? [daily.id] : [])];
+    const word = pickPracticeWord(pool, avoid) ?? currentWord;
+    applyGame({ date, slot: practiceSlot, length: targetLength, mode: 'practice', word, guesses: [], status: 'playing' });
+  };
+
+  // Load the right puzzle when the JLPT level changes (also runs on mount)
   useEffect(() => {
-    let pool = WORDLE_WORDS.filter(w => w.jlpt === currentJLPT && Array.from(w.kana).length === targetLength);
-    if (pool.length === 0) {
-      pool = WORDLE_WORDS.filter(w => Array.from(w.kana).length === targetLength);
+    applyGame(resolveGame(currentJLPT, targetLength));
+  }, [currentJLPT]); // targetLength intentionally omitted: length changes go through selectLength
+
+  // Persist progress so a reload doesn't wipe (or replay) today's puzzle
+  useEffect(() => {
+    const entry = { wordId: currentWord.id, guesses, status: gameStatus };
+    const existing = loadWordleSlot(gameDate, slot) ?? { mode };
+    saveWordleSlot(
+      gameDate,
+      slot,
+      mode === 'daily' ? { ...existing, mode, daily: entry } : { ...existing, mode, practice: entry }
+    );
+  }, [gameDate, slot, mode, currentWord.id, guesses, gameStatus]);
+
+  const handleShare = async () => {
+    const text = buildWordleShareText({
+      mode,
+      dateKey: gameDate,
+      level: currentJLPT,
+      length: targetLength,
+      evaluations: guesses.map(g => evaluateWordleGuess(targetChars, g)),
+      won: gameStatus === 'won',
+      maxAttempts: MAX_ATTEMPTS,
+      url: typeof window !== 'undefined' ? window.location.origin : undefined
+    });
+    try {
+      if (typeof navigator.share === 'function') {
+        await navigator.share({ text });
+        return;
+      }
+      await navigator.clipboard.writeText(text);
+      setShareFeedback(t.wordle.copied);
+      setTimeout(() => setShareFeedback(null), 2000);
+    } catch {
+      // share sheet dismissed or clipboard blocked
     }
-    const chosen = pool[0] || WORDLE_WORDS[0];
-    setCurrentWord(chosen);
-    setGuesses([]);
-    setCurrentInput([]);
-    setGameStatus('playing');
-    setShowHint(false);
-    setRevealedResultModal(false);
-    setRomajiBuffer('');
-    setImgError(false);
-  }, [currentJLPT, targetLength]);
+  };
 
   const handleCharInput = useCallback((char: string) => {
     if (gameStatus !== 'playing') return;
 
     if (char === 'ENTER') {
-      if (currentInput.length !== targetLength) return;
+      // A trailing "n" still waiting in the romaji buffer counts as ん on submit
+      const guess = [...currentInput, ...flushRomajiInput(romajiBuffer)];
+      if (guess.length !== targetLength) return;
 
       playCardFlipSound();
-      const newGuesses = [...guesses, currentInput];
+      const newGuesses = [...guesses, guess];
       setGuesses(newGuesses);
       setRomajiBuffer('');
 
-      const evaluation = evaluateWordleGuess(targetChars, currentInput);
+      const evaluation = evaluateWordleGuess(targetChars, guess);
+      // Clear the typed row so it shows the coloured result of this guess
+      setCurrentInput([]);
+
       if (isWordleWon(evaluation)) {
         setGameStatus('won');
         recordWordleWin();
@@ -119,17 +209,17 @@ export const WordleGame: React.FC = () => {
         setGameStatus('lost');
         addXP(10);
         setTimeout(() => setRevealedResultModal(true), 800);
-      } else {
-        // Clear currentInput so the single row shows the evaluated feedback until next key press
-        setCurrentInput([]);
       }
       return;
     }
 
     if (char === 'BACKSPACE') {
-      if (currentInput.length > 0) {
+      if (romajiBuffer) {
+        // Undo the pending romaji letter first
+        setRomajiBuffer(prev => prev.slice(0, -1));
+        playCardFlipSound();
+      } else if (currentInput.length > 0) {
         setCurrentInput(prev => prev.slice(0, -1));
-        setRomajiBuffer('');
         playCardFlipSound();
       }
       return;
@@ -137,24 +227,26 @@ export const WordleGame: React.FC = () => {
 
     if (currentInput.length < targetLength) {
       playCardFlipSound();
-      setCurrentInput(prev => [...prev, char]);
+      setRomajiBuffer('');
+      setCurrentInput(prev => [...prev, char].slice(0, targetLength));
     }
-  }, [gameStatus, currentInput, targetLength, guesses, targetChars, recordWordleWin, addXP, currentWord.kana]);
+  }, [gameStatus, currentInput, romajiBuffer, targetLength, guesses, targetChars, recordWordleWin, addXP, currentWord.kana]);
 
   const handleRomajiKey = useCallback((letter: string) => {
     if (gameStatus !== 'playing') return;
-    const next = romajiBuffer + letter.toLowerCase();
-    const converted = romajiToHiragana(next);
+    const { kana, pending } = stepRomajiInput(romajiBuffer + letter.toLowerCase());
+    const room = targetLength - currentInput.length;
 
-    if (converted !== next) {
-      const chars = Array.from(converted);
-      const newKana = chars[chars.length - 1];
-      handleCharInput(newKana);
-      setRomajiBuffer('');
-    } else {
-      setRomajiBuffer(next);
+    if (kana.length > 0 && room > 0) {
+      playCardFlipSound();
+      setCurrentInput(prev => [...prev, ...kana].slice(0, targetLength));
     }
-  }, [gameStatus, romajiBuffer, handleCharInput]);
+    // Keep waiting on an incomplete syllable only if there's still a box for it
+    setRomajiBuffer(room - kana.length > 0 ? pending : '');
+  }, [gameStatus, romajiBuffer, currentInput.length, targetLength]);
+
+  // Kana that would be submitted right now (typed boxes + any pending "n")
+  const pendingGuessLength = currentInput.length + flushRomajiInput(romajiBuffer).length;
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -205,7 +297,21 @@ export const WordleGame: React.FC = () => {
           <h2 className="text-lg sm:text-2xl font-bold text-white tracking-tight">
             {t.wordle.title}
           </h2>
-          <div className="flex items-center gap-1.5 text-[11px] sm:text-xs text-slate-400 sm:mt-1">
+          <div className="flex flex-wrap items-center justify-end sm:justify-start gap-x-1.5 gap-y-0.5 text-[11px] sm:text-xs text-slate-400 sm:mt-1">
+            {mode === 'daily' ? (
+              <span className="font-semibold text-rose-300">
+                {t.wordle.daily} #{wordlePuzzleNumber(gameDate)}
+              </span>
+            ) : (
+              <button
+                onClick={backToDaily}
+                className="font-semibold text-amber-300 hover:text-white underline underline-offset-2"
+                title={t.wordle.backToDaily}
+              >
+                {t.wordle.practice} · {t.wordle.backToDaily}
+              </button>
+            )}
+            <span aria-hidden="true">·</span>
             <span>{currentJLPT} · {targetLength} {t.wordle.kanaLength}</span>
             <span aria-hidden="true">·</span>
             <span>{MAX_ATTEMPTS - guesses.length} {t.wordle.attemptsLeft}</span>
@@ -218,7 +324,7 @@ export const WordleGame: React.FC = () => {
         <div className="flex items-center justify-between sm:justify-end gap-1.5 sm:gap-2">
           <div className="flex bg-slate-900 border border-slate-800 rounded-lg p-0.5 text-xs font-semibold">
             <button
-              onClick={() => startNewGame(3)}
+              onClick={() => selectLength(3)}
               className={`px-2.5 py-1 rounded transition-colors ${
                 targetLength === 3 ? 'bg-slate-800 text-white shadow-sm' : 'text-slate-400 hover:text-slate-200'
               }`}
@@ -226,7 +332,7 @@ export const WordleGame: React.FC = () => {
               3 {t.wordle.kanaLength}
             </button>
             <button
-              onClick={() => startNewGame(4)}
+              onClick={() => selectLength(4)}
               className={`px-2.5 py-1 rounded transition-colors ${
                 targetLength === 4 ? 'bg-slate-800 text-white shadow-sm' : 'text-slate-400 hover:text-slate-200'
               }`}
@@ -262,7 +368,7 @@ export const WordleGame: React.FC = () => {
             </button>
 
             <button
-              onClick={() => startNewGame(targetLength)}
+              onClick={startNewGame}
               className="p-1.5 rounded-lg bg-slate-900 text-slate-400 hover:text-white border border-slate-800 hover:bg-slate-800 transition-colors"
               title={t.wordle.newPuzzle}
               aria-label={t.wordle.newPuzzle}
@@ -287,8 +393,9 @@ export const WordleGame: React.FC = () => {
               />
             ) : (
               <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-rose-950/60 via-slate-900 to-indigo-950/60 p-3 text-center">
+                {/* Without the photo, don't fall back to the answer's kanji until the game is over */}
                 <span className="text-2xl sm:text-4xl font-black text-rose-400/80 font-['Kosugi_Maru']">
-                  {currentWord.kanji || '言葉'}
+                  {gameStatus === 'playing' ? '？' : currentWord.kanji || '言葉'}
                 </span>
                 <span className="text-[11px] text-slate-400 mt-1">{currentWord.english}</span>
               </div>
@@ -323,8 +430,16 @@ export const WordleGame: React.FC = () => {
                 {currentWord.hint}
               </p>
 
+              {/* Nepali meaning often transliterates the answer (e.g. साकुरा = さくら),
+                  so it stays hidden until the puzzle is over */}
+              {settings.showNepali && nepaliData && gameStatus === 'playing' && (
+                <p className="mt-2 pt-2 border-t border-slate-800/70 text-[11px] sm:text-xs text-emerald-400/80">
+                  {t.wordle.nepaliLocked}
+                </p>
+              )}
+
               {/* Nepali Meaning & Example Section (Shown when Nepali toggle is ON) */}
-              {settings.showNepali && nepaliData && (
+              {settings.showNepali && nepaliData && gameStatus !== 'playing' && (
                 <div className="mt-2 pt-2 border-t border-slate-800/70 space-y-0.5 sm:space-y-1 text-[11px] sm:text-xs">
                   <div className="flex flex-wrap items-baseline gap-1">
                     <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-400 shrink-0">
@@ -454,6 +569,26 @@ export const WordleGame: React.FC = () => {
             )}
           </div>
         )}
+
+        {/* Finished (also after a reload): share or move on */}
+        {gameStatus !== 'playing' && !revealedResultModal && (
+          <div className="flex items-center justify-center gap-2 mt-3">
+            <button
+              onClick={handleShare}
+              className="px-3.5 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold border border-slate-700 flex items-center gap-1.5"
+            >
+              <Share2 className="w-3.5 h-3.5" />
+              <span>{shareFeedback ?? t.wordle.share}</span>
+            </button>
+            <button
+              onClick={startNewGame}
+              className="px-3.5 py-2 rounded-lg bg-rose-500 hover:bg-rose-600 text-white text-xs font-bold flex items-center gap-1.5"
+            >
+              <span>{t.wordle.nextWord}</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        )}
       </div>
 
       {romajiBuffer && (
@@ -525,7 +660,7 @@ export const WordleGame: React.FC = () => {
             <div className="flex justify-center gap-2 mt-1.5 pt-2 border-t border-slate-800/80">
               <button
                 onClick={() => handleCharInput('ENTER')}
-                disabled={currentInput.length !== targetLength || gameStatus !== 'playing'}
+                disabled={pendingGuessLength !== targetLength || gameStatus !== 'playing'}
                 className="px-4 sm:px-5 h-9 sm:h-10 rounded-lg bg-rose-500 hover:bg-rose-600 disabled:opacity-30 text-white font-bold text-xs shadow-sm transition-all flex items-center gap-1.5"
               >
                 <span>{t.wordle.enter}</span>
@@ -534,7 +669,7 @@ export const WordleGame: React.FC = () => {
 
               <button
                 onClick={() => handleCharInput('BACKSPACE')}
-                disabled={currentInput.length === 0 || gameStatus !== 'playing'}
+                disabled={(currentInput.length === 0 && !romajiBuffer) || gameStatus !== 'playing'}
                 className="px-3.5 sm:px-4 h-9 sm:h-10 rounded-lg bg-slate-800 hover:bg-slate-700 disabled:opacity-30 text-slate-300 border border-slate-700/80 text-xs font-semibold transition-all flex items-center gap-1"
                 aria-label="Delete character"
               >
@@ -586,14 +721,14 @@ export const WordleGame: React.FC = () => {
             <div className="flex justify-center gap-2 mt-1.5 pt-2 border-t border-slate-800/80">
               <button
                 onClick={() => handleCharInput('ENTER')}
-                disabled={currentInput.length !== targetLength || gameStatus !== 'playing'}
+                disabled={pendingGuessLength !== targetLength || gameStatus !== 'playing'}
                 className="px-5 h-9 rounded-lg bg-rose-500 hover:bg-rose-600 disabled:opacity-30 text-white font-bold text-xs shadow-sm"
               >
                 {t.wordle.enter}
               </button>
               <button
                 onClick={() => handleCharInput('BACKSPACE')}
-                disabled={currentInput.length === 0 || gameStatus !== 'playing'}
+                disabled={(currentInput.length === 0 && !romajiBuffer) || gameStatus !== 'playing'}
                 className="px-4 h-9 rounded-lg bg-slate-800 hover:bg-slate-700 disabled:opacity-30 text-slate-300 border border-slate-700 text-xs font-semibold"
               >
                 {t.wordle.delete}
@@ -661,6 +796,14 @@ export const WordleGame: React.FC = () => {
               <span>{currentJLPT} level</span>
             </div>
 
+            <button
+              onClick={handleShare}
+              className="w-full mb-2 py-2.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold border border-slate-700 flex items-center justify-center gap-1.5"
+            >
+              <Share2 className="w-3.5 h-3.5" />
+              <span>{shareFeedback ?? t.wordle.share}</span>
+            </button>
+
             <div className="flex gap-2">
               <button
                 onClick={() => setRevealedResultModal(false)}
@@ -669,7 +812,7 @@ export const WordleGame: React.FC = () => {
                 {t.wordle.reviewBoard}
               </button>
               <button
-                onClick={() => startNewGame(targetLength)}
+                onClick={startNewGame}
                 className="flex-1 py-2.5 rounded-lg bg-rose-500 hover:bg-rose-600 text-white text-xs font-bold shadow-sm"
               >
                 {t.wordle.nextWord}

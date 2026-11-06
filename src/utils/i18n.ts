@@ -47,7 +47,13 @@ export const TRANSLATIONS = {
       hereIsWord: 'Here is the correct word:',
       reviewBoard: 'Review Board',
       nextWord: 'Next Word',
-      xpEarned: 'XP earned'
+      xpEarned: 'XP earned',
+      daily: 'Daily',
+      practice: 'Practice',
+      backToDaily: 'back to daily',
+      share: 'Share result',
+      copied: 'Copied!',
+      nepaliLocked: 'शब्द पत्ता लगाएपछि नेपाली अर्थ र उदाहरण देखिनेछ।'
     },
     typing: {
       title: 'Typing Dojo',
@@ -106,7 +112,18 @@ export const TRANSLATIONS = {
       reviewAgain: 'Review Again',
       allCategories: 'All Categories',
       mastered: 'Mastered',
-      example: 'Example'
+      example: 'Example',
+      dueLabel: 'due',
+      newLabel: 'new',
+      caughtUp: 'All caught up!',
+      caughtUpBody: 'No cards are due right now.',
+      nextReview: 'Next review',
+      today: 'today',
+      tomorrow: 'tomorrow',
+      practiceAnyway: 'Practice anyway',
+      practiceShort: 'Practice',
+      practiceMode: 'Practice mode: reviews here don\'t change your schedule.',
+      backToReviews: 'Back to due cards'
     },
     survival: {
       title: 'Survival Phrasebook',
@@ -183,7 +200,13 @@ export const TRANSLATIONS = {
       hereIsWord: '正解はこちら:',
       reviewBoard: '盤面を確認',
       nextWord: '次の問題',
-      xpEarned: '獲得XP'
+      xpEarned: '獲得XP',
+      daily: '今日の問題',
+      practice: '練習',
+      backToDaily: '今日の問題へ',
+      share: '結果をシェア',
+      copied: 'コピーしました！',
+      nepaliLocked: 'शब्द पत्ता लगाएपछि नेपाली अर्थ र उदाहरण देखिनेछ।'
     },
     typing: {
       title: 'タイピング道場',
@@ -242,7 +265,18 @@ export const TRANSLATIONS = {
       reviewAgain: 'もう一度復習',
       allCategories: '全カテゴリー',
       mastered: '習得済み',
-      example: '例文'
+      example: '例文',
+      dueLabel: '復習',
+      newLabel: '新規',
+      caughtUp: '今日の復習は完了！',
+      caughtUpBody: '今は復習するカードがありません。',
+      nextReview: '次の復習',
+      today: '今日',
+      tomorrow: '明日',
+      practiceAnyway: 'とにかく練習する',
+      practiceShort: '練習',
+      practiceMode: '練習モード：復習スケジュールは変わりません。',
+      backToReviews: '復習カードに戻る'
     },
     survival: {
       title: 'サバイバル日本語',
