@@ -4,7 +4,14 @@ import { NEPALI_VOCAB_MAP } from '../data/nepaliData';
 import { VocabWord } from '../types';
 import { useGame } from '../context/GameContext';
 import { getTranslation } from '../utils/i18n';
-import { FlashcardRating } from '../utils/srsLogic';
+import {
+  FlashcardRating,
+  buildReviewQueue,
+  calculateNextSRS,
+  formatInterval,
+  nextReviewDateKey
+} from '../utils/srsLogic';
+import { addDaysToKey, localDateKey } from '../utils/dateUtils';
 import { playCardFlipSound, playSuccessChime, speakJapanese } from '../utils/audio';
 import confetti from 'canvas-confetti';
 import { 
@@ -24,7 +31,15 @@ export const FlashcardsView: React.FC = () => {
   const [isFlipped, setIsFlipped] = useState<boolean>(false);
   const [isCompleted, setIsCompleted] = useState<boolean>(false);
   const [cardsReviewedThisSession, setCardsReviewedThisSession] = useState<number>(0);
+  // Practice mode reviews cards ahead of schedule without changing their SRS schedule
+  const [practiceMode, setPracticeMode] = useState<boolean>(false);
+  const [sessionKey, setSessionKey] = useState<number>(0);
+  const [queueCounts, setQueueCounts] = useState<{ due: number; fresh: number }>({ due: 0, fresh: 0 });
+  const [nextDueKey, setNextDueKey] = useState<string | null>(null);
 
+  // Build the session once per filter/level/session change. srsItems is read
+  // here on purpose but not a dependency: rating a card must not reshuffle
+  // the session that is in progress.
   useEffect(() => {
     let filtered = VOCAB_LIST.filter(w => !currentJLPT || w.jlpt === currentJLPT);
     if (filtered.length === 0) {
@@ -36,11 +51,20 @@ export const FlashcardsView: React.FC = () => {
         filtered = byCat;
       }
     }
-    setDeck(filtered);
+
+    if (practiceMode) {
+      setDeck(filtered);
+      setQueueCounts({ due: 0, fresh: 0 });
+    } else {
+      const { queue, dueCount, newCount } = buildReviewQueue(filtered, srsItems);
+      setDeck(queue);
+      setQueueCounts({ due: dueCount, fresh: newCount });
+    }
+    setNextDueKey(nextReviewDateKey(filtered, srsItems));
     setCurrentIndex(0);
     setIsFlipped(false);
     setIsCompleted(false);
-  }, [categoryFilter, currentJLPT]);
+  }, [categoryFilter, currentJLPT, practiceMode, sessionKey]);
 
   const currentWord: VocabWord | undefined = deck[currentIndex];
   const srsData = currentWord ? srsItems[currentWord.id] : undefined;
@@ -54,7 +78,7 @@ export const FlashcardsView: React.FC = () => {
   const handleRating = (rating: FlashcardRating) => {
     if (!currentWord) return;
 
-    recordCardReviewed(currentWord.id, rating);
+    recordCardReviewed(currentWord.id, rating, { updateSchedule: !practiceMode });
     setCardsReviewedThisSession(prev => prev + 1);
 
     if (rating === 'easy' || rating === 'good') {
@@ -65,7 +89,13 @@ export const FlashcardsView: React.FC = () => {
 
     setIsFlipped(false);
 
-    if (currentIndex + 1 < deck.length) {
+    // "Again" brings the card back at the end of this session
+    const nextDeck = rating === 'again' ? [...deck, currentWord] : deck;
+    if (rating === 'again') {
+      setDeck(nextDeck);
+    }
+
+    if (currentIndex + 1 < nextDeck.length) {
       setCurrentIndex(prev => prev + 1);
     } else {
       setIsCompleted(true);
@@ -73,12 +103,41 @@ export const FlashcardsView: React.FC = () => {
     }
   };
 
+  // Start a fresh session from the current schedule (only cards still due)
   const restartDeck = () => {
-    setCurrentIndex(0);
-    setIsFlipped(false);
-    setIsCompleted(false);
+    setSessionKey(k => k + 1);
     setCardsReviewedThisSession(0);
   };
+
+  const startPractice = () => {
+    setPracticeMode(true);
+    setCardsReviewedThisSession(0);
+  };
+
+  const exitPractice = () => {
+    setPracticeMode(false);
+    setCardsReviewedThisSession(0);
+  };
+
+  const formatDueDay = (key: string) => {
+    const today = localDateKey();
+    if (key <= today) return t.flashcards.today;
+    if (key === addDaysToKey(today, 1)) return t.flashcards.tomorrow;
+    const [y, m, d] = key.split('-').map(Number);
+    return new Date(y, m - 1, d).toLocaleDateString(uiLanguage === 'ja' ? 'ja-JP' : 'en-US', {
+      month: 'short',
+      day: 'numeric'
+    });
+  };
+
+  // Interval preview for each rating button, from this card's real schedule
+  const previewInterval = (rating: FlashcardRating) => {
+    if (!currentWord || practiceMode) return '';
+    const next = calculateNextSRS(srsData ?? { wordId: currentWord.id }, rating);
+    return formatInterval(next.intervalDays, uiLanguage);
+  };
+
+  const isCaughtUp = !isCompleted && deck.length === 0;
 
   const categories = [
     { id: 'all', label: t.categories.all },
@@ -108,8 +167,14 @@ export const FlashcardsView: React.FC = () => {
           <div className="flex items-center gap-1.5 text-xs text-slate-400 sm:mt-1">
             <span className="hidden sm:inline">{t.flashcards.subtitle} ·</span>
             <span>JLPT {currentJLPT}</span>
-            <span aria-hidden="true" className="hidden sm:inline">·</span>
-            <span className="hidden sm:inline">{t.flashcards.tapToFlip}</span>
+            <span aria-hidden="true">·</span>
+            {practiceMode ? (
+              <span className="text-amber-300">{t.flashcards.practiceShort}</span>
+            ) : (
+              <span>
+                {queueCounts.due} {t.flashcards.dueLabel} · {queueCounts.fresh} {t.flashcards.newLabel}
+              </span>
+            )}
           </div>
         </div>
 
@@ -152,7 +217,32 @@ export const FlashcardsView: React.FC = () => {
         ))}
       </div>
 
-      {!isCompleted && currentWord ? (
+      {practiceMode && (
+        <div className="flex items-center justify-between gap-2 mb-3 px-3 py-2 rounded-lg bg-amber-500/10 border border-amber-500/20 text-xs text-amber-200">
+          <span>{t.flashcards.practiceMode}</span>
+          <button onClick={exitPractice} className="font-semibold underline underline-offset-2 hover:text-white shrink-0">
+            {t.flashcards.backToReviews}
+          </button>
+        </div>
+      )}
+
+      {isCaughtUp ? (
+        /* Nothing due: all caught up */
+        <div className="bg-slate-900/40 border border-slate-800/80 rounded-2xl p-8 text-center my-6">
+          <h3 className="text-xl font-bold text-white mb-2">{t.flashcards.caughtUp}</h3>
+          <p className="text-xs text-slate-400 mb-6">
+            {nextDueKey
+              ? `${t.flashcards.nextReview}: ${formatDueDay(nextDueKey)}`
+              : t.flashcards.caughtUpBody}
+          </p>
+          <button
+            onClick={startPractice}
+            className="px-5 py-2.5 rounded-lg bg-rose-500 hover:bg-rose-600 text-white font-bold text-xs shadow-sm"
+          >
+            {t.flashcards.practiceAnyway}
+          </button>
+        </div>
+      ) : !isCompleted && currentWord ? (
         <div className="flex flex-col items-center">
           
           {/* Main Study Card */}
@@ -302,28 +392,28 @@ export const FlashcardsView: React.FC = () => {
                     className="py-2.5 rounded-lg bg-slate-900 hover:bg-slate-800 border border-red-500/30 text-red-400 font-semibold text-xs text-center transition-colors"
                   >
                     <span className="block">{t.flashcards.again}</span>
-                    <span className="text-[10px] text-slate-500 font-normal">Repeat</span>
+                    <span className="text-[10px] text-slate-500 font-normal">{previewInterval('again')}</span>
                   </button>
                   <button
                     onClick={() => handleRating('hard')}
                     className="py-2.5 rounded-lg bg-slate-900 hover:bg-slate-800 border border-amber-500/30 text-amber-400 font-semibold text-xs text-center transition-colors"
                   >
                     <span className="block">{t.flashcards.hard}</span>
-                    <span className="text-[10px] text-slate-500 font-normal">1-2d</span>
+                    <span className="text-[10px] text-slate-500 font-normal">{previewInterval('hard')}</span>
                   </button>
                   <button
                     onClick={() => handleRating('good')}
                     className="py-2.5 rounded-lg bg-slate-900 hover:bg-slate-800 border border-sky-500/30 text-sky-400 font-semibold text-xs text-center transition-colors"
                   >
                     <span className="block">{t.flashcards.good}</span>
-                    <span className="text-[10px] text-slate-500 font-normal">3d</span>
+                    <span className="text-[10px] text-slate-500 font-normal">{previewInterval('good')}</span>
                   </button>
                   <button
                     onClick={() => handleRating('easy')}
                     className="py-2.5 rounded-lg bg-slate-900 hover:bg-slate-800 border border-emerald-500/30 text-emerald-400 font-semibold text-xs text-center transition-colors"
                   >
                     <span className="block">{t.flashcards.easy}</span>
-                    <span className="text-[10px] text-slate-500 font-normal">7d+</span>
+                    <span className="text-[10px] text-slate-500 font-normal">{previewInterval('easy')}</span>
                   </button>
                 </div>
               </div>
@@ -355,7 +445,10 @@ export const FlashcardsView: React.FC = () => {
               <span>{t.flashcards.reviewAgain}</span>
             </button>
             <button
-              onClick={() => setCategoryFilter('all')}
+              onClick={() => {
+                setCategoryFilter('all');
+                restartDeck();
+              }}
               className="px-5 py-2.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold text-xs border border-slate-700"
             >
               {t.flashcards.allCategories}

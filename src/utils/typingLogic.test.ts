@@ -48,3 +48,45 @@ test('typing: calculates WPM and accuracy correctly', () => {
   assert.equal(calculateTypingAccuracy(95, 100), 95);
   assert.equal(calculateTypingAccuracy(0, 0), 100);
 });
+
+test('romaji input: typing key by key waits on "n" so な-row kana can be entered', async () => {
+  const { stepRomajiInput, flushRomajiInput } = await import('./typingLogic');
+  const typeWord = (letters: string) => {
+    let buffer = '';
+    const out: string[] = [];
+    for (const ch of letters) {
+      const step = stepRomajiInput(buffer + ch);
+      out.push(...step.kana);
+      buffer = step.pending;
+    }
+    return [...out, ...flushRomajiInput(buffer)].join('');
+  };
+  assert.equal(typeWord('sakana'), 'さかな');
+  assert.equal(typeWord('kimono'), 'きもの');
+  assert.equal(typeWord('kitsune'), 'きつね');
+  assert.equal(typeWord('minamoto'), 'みなもと');
+  assert.equal(typeWord('hon'), 'ほん');
+  assert.equal(typeWord('densha'), 'でんしゃ');
+  assert.equal(typeWord('kitte'), 'きって');
+  assert.equal(typeWord('onna'), 'おんな');
+  assert.equal(typeWord('karate'), 'からて');
+  assert.equal(typeWord('shiori'), 'しおり');
+  assert.equal(typeWord('tamashii'), 'たましい');
+  assert.equal(typeWord('kyou'), 'きょう');
+  assert.equal(typeWord('vqa'), 'あ', 'letters that cannot form kana are dropped');
+});
+
+test('romaji input: same results as whole-word conversion for every Wordle answer', async () => {
+  const { stepRomajiInput, flushRomajiInput } = await import('./typingLogic');
+  const { WORDLE_WORDS } = await import('../data/wordleWords');
+  for (const w of WORDLE_WORDS) {
+    let buffer = '';
+    const out: string[] = [];
+    for (const ch of w.romaji) {
+      const step = stepRomajiInput(buffer + ch);
+      out.push(...step.kana);
+      buffer = step.pending;
+    }
+    assert.equal([...out, ...flushRomajiInput(buffer)].join(''), w.kana, w.romaji);
+  }
+});

@@ -99,7 +99,7 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, onSelectTab, onOpenAc
             </button>
 
             {/* Mobile & Tablet Mode Selection Dropdown (<lg) */}
-            <div className="relative lg:hidden">
+            <div className="relative xl:hidden">
               <button
                 type="button"
                 onClick={() => setOpenDropdown(prev => (prev === 'mode' ? null : 'mode'))}
@@ -150,7 +150,7 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, onSelectTab, onOpenAc
           </div>
 
           {/* Center Zone: Desktop 5-Mode Navigation Links (lg+) */}
-          <nav aria-label="Game Modes" className="hidden lg:flex items-center gap-1">
+          <nav aria-label="Game Modes" className="hidden xl:flex items-center gap-1">
             {navLinks.map(link => {
               const isActive = activeTab === link.id;
               return (

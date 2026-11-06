@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { UserStats, SRSItem, Achievement, JLPTLevel, UILanguage } from '../types';
 import { calculateLevelFromXP, calculateNextSRS, FlashcardRating } from '../utils/srsLogic';
+import { countMastered, createInitialStats, migrateStats, recordActivity, rollOverDay } from '../utils/statsLogic';
 import { playSuccessChime, playVictoryFanfare, setSoundEffectsEnabled } from '../utils/audio';
 
 const STORAGE_KEY_STATS = 'kotoba_user_stats_v1';
@@ -65,19 +66,14 @@ export const ACHIEVEMENTS: Achievement[] = [
   }
 ];
 
-const INITIAL_STATS: UserStats = {
-  xp: 45,
-  level: 1,
-  streakDays: 3,
-  lastActiveDate: new Date().toISOString().split('T')[0],
-  dailyGoalWords: 10,
-  todayStudiedCount: 4,
-  wordsMastered: 2,
-  typingHighScore: 0,
-  wordlesCompleted: 0,
-  kanjiCrafted: 0,
-  unlockedAchievements: []
-};
+function readJSON<T>(key: string): T | null {
+  try {
+    const saved = localStorage.getItem(key);
+    return saved ? (JSON.parse(saved) as T) : null;
+  } catch {
+    return null;
+  }
+}
 
 interface Settings {
   soundEnabled: boolean;
@@ -101,7 +97,7 @@ interface GameContextType {
   recordWordleWin: () => void;
   recordTypingScore: (score: number) => void;
   recordKanjiCrafted: () => void;
-  recordCardReviewed: (wordId: string, rating: FlashcardRating) => void;
+  recordCardReviewed: (wordId: string, rating: FlashcardRating, options?: { updateSchedule?: boolean }) => void;
   toggleSound: () => void;
   toggleFurigana: () => void;
   toggleRomaji: () => void;
@@ -115,13 +111,9 @@ const GameContext = createContext<GameContextType | undefined>(undefined);
 
 export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [stats, setStats] = useState<UserStats>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY_STATS);
-      if (saved) return JSON.parse(saved);
-    } catch {
-      // ignore
-    }
-    return INITIAL_STATS;
+    const savedSrs = readJSON<Record<string, SRSItem>>(STORAGE_KEY_SRS) ?? {};
+    const savedStats = readJSON<unknown>(STORAGE_KEY_STATS);
+    return rollOverDay(migrateStats(savedStats, savedSrs, ACHIEVEMENTS));
   });
 
   const [settings, setSettings] = useState<Settings>(() => {
@@ -167,17 +159,25 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return 'dark';
   });
 
-  const [srsItems, setSrsItems] = useState<Record<string, SRSItem>>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY_SRS);
-      if (saved) return JSON.parse(saved);
-    } catch {
-      // ignore
-    }
-    return {};
-  });
+  const [srsItems, setSrsItems] = useState<Record<string, SRSItem>>(
+    () => readJSON<Record<string, SRSItem>>(STORAGE_KEY_SRS) ?? {}
+  );
 
   const [newAchievementUnlocked, setNewAchievementUnlocked] = useState<Achievement | null>(null);
+
+  // Reset the daily counter / broken streak when the app is reopened on a new day
+  useEffect(() => {
+    const refreshDay = () => setStats(prev => rollOverDay(prev));
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') refreshDay();
+    };
+    window.addEventListener('focus', refreshDay);
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => {
+      window.removeEventListener('focus', refreshDay);
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
+  }, []);
 
   // Sync sound settings with audio engine
   useEffect(() => {
@@ -268,8 +268,9 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setStats(prev => {
       const newXP = prev.xp + amount;
       const levelInfo = calculateLevelFromXP(newXP);
+      // Any XP counts as practising today (keeps the streak alive)
       return {
-        ...prev,
+        ...recordActivity(prev, 0),
         xp: newXP,
         level: levelInfo.level
       };
@@ -279,49 +280,53 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const recordWordleWin = () => {
     addXP(50);
     setStats(prev => ({
-      ...prev,
-      wordlesCompleted: prev.wordlesCompleted + 1,
-      todayStudiedCount: prev.todayStudiedCount + 1
+      ...recordActivity(prev, 1),
+      wordlesCompleted: prev.wordlesCompleted + 1
     }));
   };
 
   const recordTypingScore = (score: number) => {
     addXP(Math.round(score * 0.2));
     setStats(prev => ({
-      ...prev,
-      typingHighScore: Math.max(prev.typingHighScore, score),
-      todayStudiedCount: prev.todayStudiedCount + 1
+      ...recordActivity(prev, 1),
+      typingHighScore: Math.max(prev.typingHighScore, score)
     }));
   };
 
   const recordKanjiCrafted = () => {
     addXP(35);
     setStats(prev => ({
-      ...prev,
-      kanjiCrafted: prev.kanjiCrafted + 1,
-      todayStudiedCount: prev.todayStudiedCount + 1
+      ...recordActivity(prev, 1),
+      kanjiCrafted: prev.kanjiCrafted + 1
     }));
   };
 
-  const recordCardReviewed = (wordId: string, rating: FlashcardRating) => {
+  const recordCardReviewed = (
+    wordId: string,
+    rating: FlashcardRating,
+    options: { updateSchedule?: boolean } = {}
+  ) => {
+    const { updateSchedule = true } = options;
+    addXP(rating === 'again' ? 5 : 15);
+
+    if (!updateSchedule) {
+      // Practice-ahead reviews earn XP but don't move the card's schedule
+      setStats(prev => recordActivity(prev, 1));
+      return;
+    }
+
     const current = srsItems[wordId] || { wordId };
     const updated = calculateNextSRS(current, rating);
+    const nextItems = { ...srsItems, [wordId]: updated };
 
     setSrsItems(prev => ({
       ...prev,
       [wordId]: updated
     }));
 
-    addXP(rating === 'again' ? 5 : 15);
-
-    const allMastered = Object.values({ ...srsItems, [wordId]: updated }).filter(
-      item => item.status === 'mastered'
-    ).length;
-
     setStats(prev => ({
-      ...prev,
-      todayStudiedCount: prev.todayStudiedCount + 1,
-      wordsMastered: allMastered
+      ...recordActivity(prev, 1),
+      wordsMastered: countMastered(nextItems)
     }));
   };
 
@@ -342,7 +347,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const resetProgress = () => {
-    setStats(INITIAL_STATS);
+    setStats(createInitialStats());
     setSrsItems({});
   };
 

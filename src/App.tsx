@@ -7,11 +7,12 @@ import { KanjiForge } from './components/KanjiForge';
 import { FlashcardsView } from './components/FlashcardsView';
 import { SurvivalGuide } from './components/SurvivalGuide';
 import { AchievementsModal } from './components/AchievementsModal';
+import { WelcomeBanner } from './components/WelcomeBanner';
 import { GameMode } from './types';
 import { Sparkles, Trophy, X } from 'lucide-react';
 
 const MainApp: React.FC = () => {
-  const { newAchievementUnlocked, clearAchievementNotification } = useGame();
+  const { newAchievementUnlocked, clearAchievementNotification, uiLanguage } = useGame();
   
   const [activeTab, setActiveTab] = useState<GameMode>(() => {
     if (typeof window !== 'undefined') {
@@ -25,6 +26,18 @@ const MainApp: React.FC = () => {
   });
 
   const [isAchievementsOpen, setIsAchievementsOpen] = useState<boolean>(false);
+
+  // Keep the URL in step with the open mode so refresh / back / sharing keep your place
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    if (activeTab === 'wordle') url.searchParams.delete('tab');
+    else url.searchParams.set('tab', activeTab);
+    if (url.href !== window.location.href) window.history.replaceState(null, '', url);
+  }, [activeTab]);
+
+  useEffect(() => {
+    document.documentElement.lang = uiLanguage === 'ja' ? 'ja' : 'en';
+  }, [uiLanguage]);
 
   useEffect(() => {
     if (newAchievementUnlocked) {
@@ -46,6 +59,7 @@ const MainApp: React.FC = () => {
 
       {/* Main Content Area with Responsive Mobile Whitespace */}
       <main className="flex-1 w-full max-w-6xl mx-auto px-2 sm:px-6 lg:px-8 py-3 sm:py-6">
+        <WelcomeBanner showHero={activeTab === 'wordle'} />
         {activeTab === 'wordle' && <WordleGame />}
         {activeTab === 'typing' && <TypingDojo />}
         {activeTab === 'kanji' && <KanjiForge />}
@@ -88,7 +102,7 @@ const MainApp: React.FC = () => {
           <div className="flex items-center gap-2 text-slate-500 text-[11px] sm:text-xs">
             <span>JLPT N5–N1 Grounded</span>
             <span aria-hidden="true">·</span>
-            <span>Native Audio Speech</span>
+            <span>Audio Pronunciation</span>
             <span aria-hidden="true">·</span>
             <span>Spaced Repetition</span>
           </div>

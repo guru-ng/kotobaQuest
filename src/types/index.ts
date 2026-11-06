@@ -65,6 +65,8 @@ export interface SRSItem {
 }
 
 export interface UserStats {
+  /** Schema version of the saved stats (missing = v1, which shipped fake demo numbers). */
+  version?: number;
   xp: number;
   level: number;
   streakDays: number;

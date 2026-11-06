@@ -1,4 +1,5 @@
 import { SRSItem } from '../types';
+import { localDateKey } from './dateUtils';
 
 export type FlashcardRating = 'again' | 'hard' | 'good' | 'easy';
 
@@ -67,6 +68,62 @@ export function calculateNextSRS(
     nextReviewDate: nextDate.toISOString(),
     status
   };
+}
+
+/** A card is due on (or after) the local calendar day of its nextReviewDate. */
+export function isDue(item: SRSItem | undefined, now: Date = new Date()): boolean {
+  if (!item?.nextReviewDate) return false;
+  const due = new Date(item.nextReviewDate);
+  if (Number.isNaN(due.getTime())) return true;
+  return localDateKey(due) <= localDateKey(now);
+}
+
+export interface ReviewQueue<T> {
+  queue: T[];
+  dueCount: number;
+  newCount: number;
+}
+
+/**
+ * Builds today's study session: cards that are due (most overdue first),
+ * followed by cards never studied before. Cards scheduled for a later day
+ * are left out.
+ */
+export function buildReviewQueue<T extends { id: string }>(
+  cards: T[],
+  srsItems: Record<string, SRSItem>,
+  now: Date = new Date()
+): ReviewQueue<T> {
+  const due = cards
+    .filter(card => srsItems[card.id] && isDue(srsItems[card.id], now))
+    .sort((a, b) => srsItems[a.id].nextReviewDate.localeCompare(srsItems[b.id].nextReviewDate));
+  const fresh = cards.filter(card => !srsItems[card.id]);
+  return { queue: [...due, ...fresh], dueCount: due.length, newCount: fresh.length };
+}
+
+/** Earliest upcoming review (local date key) among the given cards, or null. */
+export function nextReviewDateKey<T extends { id: string }>(
+  cards: T[],
+  srsItems: Record<string, SRSItem>
+): string | null {
+  const keys = cards
+    .map(card => srsItems[card.id]?.nextReviewDate)
+    .filter((d): d is string => Boolean(d))
+    .map(d => localDateKey(new Date(d)))
+    .sort();
+  return keys[0] ?? null;
+}
+
+/** Short label for a review interval, e.g. "Now", "3d", "2mo". */
+export function formatInterval(days: number, lang: 'en' | 'ja' = 'en'): string {
+  if (days <= 0) return lang === 'ja' ? 'すぐ' : 'Now';
+  if (days < 30) return lang === 'ja' ? `${days}日` : `${days}d`;
+  if (days < 365) {
+    const months = Math.round(days / 30);
+    return lang === 'ja' ? `${months}ヶ月` : `${months}mo`;
+  }
+  const years = Number((days / 365).toFixed(1));
+  return lang === 'ja' ? `${years}年` : `${years}y`;
 }
 
 export interface LevelInfo {
