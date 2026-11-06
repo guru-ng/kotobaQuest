@@ -1,0 +1,6 @@
+{
+  "name": "KotobaQuest: Japanese Learning Games",
+  "description": "Gamified Japanese learning for foreigners with Wordle puzzle, Typing Dojo, Kanji Radical Forge, and audio Flashcards.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
