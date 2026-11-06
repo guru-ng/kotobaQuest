@@ -141,13 +141,13 @@ export const TypingDojo: React.FC = () => {
   const accuracy = calculateTypingAccuracy(correctKeystrokes, totalKeystrokes);
 
   return (
-    <div className="max-w-2xl mx-auto px-4 py-4" data-testid="typing-dojo-view">
+    <div className="max-w-2xl mx-auto px-2 sm:px-4 py-2 sm:py-4" data-testid="typing-dojo-view">
       
       {/* Editorial Header */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-4 border-b border-slate-800/80 mb-6">
-        <div>
-          <div className="flex items-center gap-3">
-            <h2 className="text-xl sm:text-2xl font-bold text-white tracking-tight">
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 sm:gap-4 pb-3 sm:pb-4 border-b border-slate-800/80 mb-4 sm:mb-6">
+        <div className="flex items-baseline justify-between sm:block">
+          <div className="flex items-center gap-2">
+            <h2 className="text-lg sm:text-2xl font-bold text-white tracking-tight">
               {t.typing.title}
             </h2>
             {uiLanguage === 'ja' && (
@@ -156,23 +156,22 @@ export const TypingDojo: React.FC = () => {
               </span>
             )}
           </div>
-          <div className="flex items-center gap-2 text-xs text-slate-400 mt-1">
-            <span>{t.typing.subtitle}</span>
-            <span aria-hidden="true">·</span>
+          <div className="flex items-center gap-1.5 text-xs text-slate-400 sm:mt-1">
+            <span className="hidden sm:inline">{t.typing.subtitle} ·</span>
             <span>{currentJLPT}</span>
             <span aria-hidden="true">·</span>
             <span>Romaji / Kana</span>
           </div>
         </div>
 
-        {/* Clean Category Segmented Controls (No Pill Badges) */}
+        {/* Clean Category Segmented Controls */}
         {!isPlaying && (
-          <div className="flex items-center gap-1 bg-slate-900 border border-slate-800 p-0.5 rounded-lg text-xs font-semibold self-end sm:self-auto">
+          <div className="flex items-center justify-between sm:justify-start gap-1 bg-slate-900 border border-slate-800 p-0.5 rounded-lg text-xs font-semibold overflow-x-auto">
             {(['food', 'travel', 'verbs', 'daily', 'all'] as DojoCategory[]).map(cat => (
               <button
                 key={cat}
                 onClick={() => setCategory(cat)}
-                className={`px-2.5 py-1 rounded capitalize transition-colors ${
+                className={`flex-1 sm:flex-initial px-2.5 py-1 rounded capitalize transition-colors whitespace-nowrap ${
                   category === cat
                     ? 'bg-slate-800 text-white font-bold shadow-sm'
                     : 'text-slate-400 hover:text-slate-200'
@@ -187,15 +186,15 @@ export const TypingDojo: React.FC = () => {
 
       {!isPlaying && !isGameOver ? (
         /* Clean Zen Start Card */
-        <div className="bg-slate-900/40 border border-slate-800/80 rounded-2xl p-8 sm:p-12 text-center my-6">
-          <div className="w-16 h-16 rounded-2xl bg-rose-500/10 text-rose-400 border border-rose-500/20 flex items-center justify-center mx-auto mb-4 text-2xl font-black font-['Kosugi_Maru']">
+        <div className="bg-slate-900/40 border border-slate-800/80 rounded-2xl p-6 sm:p-12 text-center my-4 sm:my-6">
+          <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-rose-500/10 text-rose-400 border border-rose-500/20 flex items-center justify-center mx-auto mb-4 text-2xl font-black font-['Kosugi_Maru']">
             道
           </div>
 
-          <h3 className="text-xl font-bold text-white mb-2">
+          <h3 className="text-lg sm:text-xl font-bold text-white mb-2">
             {t.typing.speedPractice}
           </h3>
-          <p className="text-xs sm:text-sm text-slate-400 max-w-md mx-auto mb-8 leading-relaxed">
+          <p className="text-xs sm:text-sm text-slate-400 max-w-md mx-auto mb-6 sm:mb-8 leading-relaxed">
             {t.typing.instructions}
           </p>
 
@@ -209,44 +208,44 @@ export const TypingDojo: React.FC = () => {
         </div>
       ) : isPlaying ? (
         /* Clean Active Arena */
-        <div className="flex flex-col gap-6">
+        <div className="flex flex-col gap-4 sm:gap-6">
           
           {/* Unboxed Single-Row Typographic HUD */}
           <div className="flex items-center justify-between text-xs sm:text-sm font-semibold text-slate-400 px-1">
-            <div className="flex items-center gap-2">
-              <span className="text-slate-500 uppercase text-[11px] tracking-wider">{t.typing.score}</span>
-              <span className="text-white font-bold tabular-nums text-base">{score}</span>
+            <div className="flex items-center gap-1.5">
+              <span className="text-slate-500 uppercase text-[10px] sm:text-[11px] tracking-wider">{t.typing.score}</span>
+              <span className="text-white font-bold tabular-nums text-sm sm:text-base">{score}</span>
             </div>
             
-            <div className="flex items-center gap-1.5 text-amber-400">
-              <Flame className="w-4 h-4" />
+            <div className="flex items-center gap-1 text-amber-400">
+              <Flame className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
               <span className="font-bold tabular-nums">{streak}x</span>
-              <span className="text-slate-500 text-xs">{t.typing.streak}</span>
+              <span className="hidden xs:inline text-slate-500 text-xs">{t.typing.streak}</span>
             </div>
 
-            <div className="flex items-center gap-2">
-              <span className="text-slate-500 uppercase text-[11px] tracking-wider">{t.typing.speed}</span>
-              <span className="text-white font-bold tabular-nums text-base">{currentWPM}</span>
-              <span className="text-slate-500 text-xs">{t.typing.wpm}</span>
+            <div className="flex items-center gap-1.5">
+              <span className="text-slate-500 uppercase text-[10px] sm:text-[11px] tracking-wider">{t.typing.speed}</span>
+              <span className="text-white font-bold tabular-nums text-sm sm:text-base">{currentWPM}</span>
+              <span className="text-slate-500 text-[11px]">{t.typing.wpm}</span>
             </div>
 
-            <div className="flex items-center gap-1.5 font-mono">
-              <span className={`text-base font-bold tabular-nums ${timeLeft <= 10 ? 'text-red-400 animate-pulse' : 'text-slate-200'}`}>
+            <div className="flex items-center gap-1 font-mono">
+              <span className={`text-sm sm:text-base font-bold tabular-nums ${timeLeft <= 10 ? 'text-red-400 animate-pulse' : 'text-slate-200'}`}>
                 {timeLeft}s
               </span>
             </div>
           </div>
 
           {/* Target Word Focus Area */}
-          <div className="bg-slate-900/60 border border-slate-800/80 rounded-2xl p-8 sm:p-12 text-center flex flex-col items-center">
+          <div className="bg-slate-900/60 border border-slate-800/80 rounded-2xl p-5 sm:p-12 text-center flex flex-col items-center">
             
             {/* Japanese Characters */}
-            <div className="mb-2">
-              <div className="text-5xl sm:text-6xl font-black text-white font-['Kosugi_Maru'] tracking-wide">
+            <div className="mb-1 sm:mb-2">
+              <div className="text-4xl sm:text-6xl font-black text-white font-['Kosugi_Maru'] tracking-wide">
                 {currentWord.kanji || currentWord.kana}
               </div>
               {currentWord.kanji && (
-                <div className="text-lg font-bold text-rose-400 mt-2 font-['Kosugi_Maru']">
+                <div className="text-base sm:text-lg font-bold text-rose-400 mt-1 sm:mt-2 font-['Kosugi_Maru']">
                   {currentWord.kana}
                 </div>
               )}

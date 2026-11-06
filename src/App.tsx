@@ -44,8 +44,8 @@ const MainApp: React.FC = () => {
         onOpenAchievements={() => setIsAchievementsOpen(true)} 
       />
 
-      {/* Main Content Area with Generous Whitespace */}
-      <main className="flex-1 w-full max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+      {/* Main Content Area with Responsive Mobile Whitespace */}
+      <main className="flex-1 w-full max-w-6xl mx-auto px-2 sm:px-6 lg:px-8 py-3 sm:py-6">
         {activeTab === 'wordle' && <WordleGame />}
         {activeTab === 'typing' && <TypingDojo />}
         {activeTab === 'kanji' && <KanjiForge />}
@@ -55,7 +55,7 @@ const MainApp: React.FC = () => {
 
       {/* Quiet Achievement Notification Toast */}
       {newAchievementUnlocked && (
-        <div className="fixed bottom-6 right-6 z-50 bg-slate-900 border border-amber-500/30 text-white p-4 rounded-xl shadow-xl flex items-center gap-3 max-w-sm animate-in slide-in-from-bottom-4 duration-200">
+        <div className="fixed bottom-4 left-3 right-3 sm:left-auto sm:bottom-6 sm:right-6 z-50 bg-slate-900 border border-amber-500/30 text-white p-3.5 sm:p-4 rounded-xl shadow-xl flex items-center gap-3 sm:max-w-sm animate-in slide-in-from-bottom-4 duration-200">
           <div className="w-9 h-9 rounded-lg bg-amber-500/10 text-amber-400 border border-amber-500/20 flex items-center justify-center shrink-0">
             <Trophy className="w-5 h-5" />
           </div>
@@ -82,10 +82,10 @@ const MainApp: React.FC = () => {
       />
 
       {/* Editorial Footer */}
-      <footer className="border-t border-slate-900 py-6 text-center text-xs text-slate-600">
-        <div className="max-w-6xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-2">
+      <footer className="border-t border-slate-900 py-4 sm:py-6 text-center text-xs text-slate-600">
+        <div className="max-w-6xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-1.5 sm:gap-2">
           <p>KotobaQuest · Japanese Learning Environment</p>
-          <div className="flex items-center gap-2 text-slate-500">
+          <div className="flex items-center gap-2 text-slate-500 text-[11px] sm:text-xs">
             <span>JLPT N5–N1 Grounded</span>
             <span aria-hidden="true">·</span>
             <span>Native Audio Speech</span>

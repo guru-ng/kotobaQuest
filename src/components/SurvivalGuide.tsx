@@ -37,13 +37,13 @@ export const SurvivalGuide: React.FC = () => {
     : activeCategory.phrases;
 
   return (
-    <div className="max-w-2xl mx-auto px-4 py-4" data-testid="survival-guide-view">
+    <div className="max-w-2xl mx-auto px-2 sm:px-4 py-2 sm:py-4" data-testid="survival-guide-view">
       
       {/* Editorial Header */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-4 border-b border-slate-800/80 mb-5">
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pb-3 sm:pb-4 border-b border-slate-800/80 mb-4 sm:mb-5">
         <div>
-          <div className="flex items-center gap-3">
-            <h2 className="text-xl sm:text-2xl font-bold text-white tracking-tight">
+          <div className="flex items-center justify-between sm:justify-start gap-3">
+            <h2 className="text-lg sm:text-2xl font-bold text-white tracking-tight">
               {t.survival.title}
             </h2>
             {uiLanguage === 'ja' && (
@@ -52,15 +52,15 @@ export const SurvivalGuide: React.FC = () => {
               </span>
             )}
           </div>
-          <div className="flex items-center gap-2 text-xs text-slate-400 mt-1">
+          <div className="flex items-center gap-2 text-xs text-slate-400 mt-0.5 sm:mt-1">
             <span>{t.survival.subtitle}</span>
-            <span aria-hidden="true">·</span>
-            <span>Business, Teineigo & Travel</span>
+            <span aria-hidden="true" className="hidden sm:inline">·</span>
+            <span className="hidden sm:inline">Business, Teineigo & Travel</span>
           </div>
         </div>
 
         {/* Clean Search Input & Nepali Toggle */}
-        <div className="flex items-center gap-2 w-full sm:w-auto self-end sm:self-auto">
+        <div className="flex items-center gap-2 w-full sm:w-auto">
           <button
             onClick={toggleNepali}
             className={`px-2.5 py-1.5 rounded-lg border text-xs font-bold shrink-0 transition-colors ${
@@ -86,10 +86,28 @@ export const SurvivalGuide: React.FC = () => {
         </div>
       </div>
 
-      {/* Clean Category Segmented Bar (Includes Business & Teineigo first) */}
+      {/* Category Selection: Dropdown on Mobile (<sm), Segmented Bar on Tablet/Desktop (sm+) */}
       {!searchQuery && (
-        <div className="mb-5">
-          <div className="flex items-center gap-1.5 overflow-x-auto pb-1.5 scrollbar-none">
+        <div className="mb-4 sm:mb-5">
+          {/* Mobile Category Dropdown */}
+          <div className="sm:hidden mb-2">
+            <label htmlFor="survival-cat-select" className="sr-only">Select Situation Category</label>
+            <select
+              id="survival-cat-select"
+              value={selectedCatId}
+              onChange={(e) => setSelectedCatId(e.target.value)}
+              className="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-800 text-xs font-bold text-white focus:outline-none focus:border-rose-500"
+            >
+              {SURVIVAL_CATEGORIES.map(cat => (
+                <option key={cat.id} value={cat.id}>
+                  {uiLanguage === 'ja' ? cat.titleJa : cat.title}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Desktop/Tablet Segmented Bar */}
+          <div className="hidden sm:flex items-center gap-1.5 overflow-x-auto pb-1.5 scrollbar-none">
             {SURVIVAL_CATEGORIES.map(cat => (
               <button
                 key={cat.id}
@@ -104,7 +122,7 @@ export const SurvivalGuide: React.FC = () => {
               </button>
             ))}
           </div>
-          <p className="text-xs text-slate-400 mt-2">
+          <p className="text-xs text-slate-400 mt-1.5 sm:mt-2">
             {uiLanguage === 'ja' ? activeCategory.descriptionJa : activeCategory.description}
           </p>
         </div>

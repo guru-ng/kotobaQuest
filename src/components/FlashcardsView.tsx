@@ -90,13 +90,13 @@ export const FlashcardsView: React.FC = () => {
   ];
 
   return (
-    <div className="max-w-2xl mx-auto px-4 py-4" data-testid="flashcards-view">
+    <div className="max-w-2xl mx-auto px-2 sm:px-4 py-2 sm:py-4" data-testid="flashcards-view">
       
       {/* Editorial Header */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-4 border-b border-slate-800/80 mb-6">
-        <div>
-          <div className="flex items-center gap-3">
-            <h2 className="text-xl sm:text-2xl font-bold text-white tracking-tight">
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 sm:gap-4 pb-3 sm:pb-4 border-b border-slate-800/80 mb-4 sm:mb-6">
+        <div className="flex items-baseline justify-between sm:block">
+          <div className="flex items-center gap-2">
+            <h2 className="text-lg sm:text-2xl font-bold text-white tracking-tight">
               {t.flashcards.title}
             </h2>
             {uiLanguage === 'ja' && (
@@ -105,17 +105,16 @@ export const FlashcardsView: React.FC = () => {
               </span>
             )}
           </div>
-          <div className="flex items-center gap-2 text-xs text-slate-400 mt-1">
-            <span>{t.flashcards.subtitle}</span>
-            <span aria-hidden="true">·</span>
+          <div className="flex items-center gap-1.5 text-xs text-slate-400 sm:mt-1">
+            <span className="hidden sm:inline">{t.flashcards.subtitle} ·</span>
             <span>JLPT {currentJLPT}</span>
-            <span aria-hidden="true">·</span>
-            <span>{t.flashcards.tapToFlip}</span>
+            <span aria-hidden="true" className="hidden sm:inline">·</span>
+            <span className="hidden sm:inline">{t.flashcards.tapToFlip}</span>
           </div>
         </div>
 
         {/* Unboxed Counter + Nepali Toggle */}
-        <div className="flex items-center gap-3 self-end sm:self-auto">
+        <div className="flex items-center justify-between sm:justify-end gap-3">
           <button
             onClick={toggleNepali}
             className={`px-2.5 py-1 rounded-lg border text-xs font-bold transition-colors ${
@@ -137,12 +136,12 @@ export const FlashcardsView: React.FC = () => {
       </div>
 
       {/* Clean Category Filter Tabs */}
-      <div className="flex items-center gap-1 overflow-x-auto pb-1 mb-6 scrollbar-none">
+      <div className="flex items-center gap-1 overflow-x-auto pb-1 mb-4 sm:mb-6 scrollbar-none">
         {categories.map(cat => (
           <button
             key={cat.id}
             onClick={() => setCategoryFilter(cat.id)}
-            className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors ${
+            className={`px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors ${
               categoryFilter === cat.id
                 ? 'bg-slate-800 text-white font-bold border border-slate-700/80'
                 : 'text-slate-400 hover:text-slate-200'
@@ -159,7 +158,7 @@ export const FlashcardsView: React.FC = () => {
           {/* Main Study Card */}
           <div
             onClick={handleFlip}
-            className="w-full min-h-[340px] bg-slate-900/40 border border-slate-800/80 hover:border-slate-700 rounded-2xl p-8 shadow-sm cursor-pointer relative flex flex-col justify-between transition-colors select-none"
+            className="w-full min-h-[260px] sm:min-h-[340px] bg-slate-900/40 border border-slate-800/80 hover:border-slate-700 rounded-2xl p-5 sm:p-8 shadow-sm cursor-pointer relative flex flex-col justify-between transition-colors select-none"
           >
             {/* Unboxed Top Metadata */}
             <div className="flex items-center justify-between text-xs text-slate-400">
