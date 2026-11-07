@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { VOCAB_LIST } from '../data/vocabData';
 import { NEPALI_VOCAB_MAP } from '../data/nepaliData';
 import { VocabWord } from '../types';
 import { useGame } from '../context/GameContext';
+import { useContentPack } from '../data/contentPack';
 import { getTranslation } from '../utils/i18n';
 import {
   FlashcardRating,
@@ -24,6 +24,7 @@ import {
 export const FlashcardsView: React.FC = () => {
   const { settings, srsItems, recordCardReviewed, currentJLPT, uiLanguage, toggleNepali } = useGame();
   const t = getTranslation(uiLanguage);
+  const { pack, ready } = useContentPack(currentJLPT);
 
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
   const [deck, setDeck] = useState<VocabWord[]>([]);
@@ -41,10 +42,8 @@ export const FlashcardsView: React.FC = () => {
   // here on purpose but not a dependency: rating a card must not reshuffle
   // the session that is in progress.
   useEffect(() => {
-    let filtered = VOCAB_LIST.filter(w => !currentJLPT || w.jlpt === currentJLPT);
-    if (filtered.length === 0) {
-      filtered = VOCAB_LIST;
-    }
+    if (!ready) return;
+    let filtered = pack.vocab;
     if (categoryFilter !== 'all') {
       const byCat = filtered.filter(w => w.category === categoryFilter);
       if (byCat.length > 0) {
@@ -64,7 +63,7 @@ export const FlashcardsView: React.FC = () => {
     setCurrentIndex(0);
     setIsFlipped(false);
     setIsCompleted(false);
-  }, [categoryFilter, currentJLPT, practiceMode, sessionKey]);
+  }, [categoryFilter, currentJLPT, practiceMode, sessionKey, ready, pack]);
 
   const currentWord: VocabWord | undefined = deck[currentIndex];
   const srsData = currentWord ? srsItems[currentWord.id] : undefined;
@@ -217,6 +216,12 @@ export const FlashcardsView: React.FC = () => {
         ))}
       </div>
 
+      {!ready && deck.length === 0 && (
+        <div className="bg-slate-900/40 border border-slate-800/80 rounded-2xl p-8 text-center my-6 text-sm text-slate-400">
+          {t.flashcards.loading}
+        </div>
+      )}
+
       {practiceMode && (
         <div className="flex items-center justify-between gap-2 mb-3 px-3 py-2 rounded-lg bg-amber-500/10 border border-amber-500/20 text-xs text-amber-200">
           <span>{t.flashcards.practiceMode}</span>
@@ -226,7 +231,7 @@ export const FlashcardsView: React.FC = () => {
         </div>
       )}
 
-      {isCaughtUp ? (
+      {!ready && deck.length === 0 ? null : isCaughtUp ? (
         /* Nothing due: all caught up */
         <div className="bg-slate-900/40 border border-slate-800/80 rounded-2xl p-8 text-center my-6">
           <h3 className="text-xl font-bold text-white mb-2">{t.flashcards.caughtUp}</h3>
@@ -327,7 +332,8 @@ export const FlashcardsView: React.FC = () => {
                   </button>
                 </div>
 
-                {/* Example Sentence */}
+                {/* Example sentence: hand-written entries only */}
+                {currentWord.exampleJa && (
                 <div className="bg-slate-950/70 rounded-xl p-4 border border-slate-800/80 text-left">
                   <div className="flex items-center justify-between text-xs text-slate-500 mb-1">
                     <span>Example</span>
@@ -335,7 +341,7 @@ export const FlashcardsView: React.FC = () => {
                       type="button"
                       onClick={(e) => {
                         e.stopPropagation();
-                        speakJapanese(currentWord.exampleJa);
+                        speakJapanese(currentWord.exampleJa!);
                       }}
                       className="text-slate-400 hover:text-white flex items-center gap-1"
                     >
@@ -363,6 +369,7 @@ export const FlashcardsView: React.FC = () => {
                     </div>
                   )}
                 </div>
+                )}
 
                 {currentWord.notes && (
                   <p className="text-xs text-slate-400 mt-3 italic">

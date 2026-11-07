@@ -12,10 +12,13 @@ export interface VocabWord {
   english: string;
   jlpt: JLPTLevel;
   category: 'food' | 'travel' | 'daily' | 'basics' | 'adjectives' | 'verbs' | 'business' | 'advanced';
-  exampleJa: string;
-  exampleKana: string;
-  exampleEn: string;
+  /** Example sentences exist on the hand-written entries; generated ones have none yet. */
+  exampleJa?: string;
+  exampleKana?: string;
+  exampleEn?: string;
   notes?: string;
+  /** True for entries produced by scripts/build-content.ts from open datasets. */
+  generated?: boolean;
 }
 
 export type WordleTileState = 'correct' | 'present' | 'absent' | 'empty';
@@ -28,8 +31,10 @@ export interface WordleWord {
   english: string;
   hint: string;
   jlpt: JLPTLevel;
-  imageUrl: string;
+  /** Picture clue; generated words have none and fall back to a kanji card. */
+  imageUrl?: string;
   category?: string;
+  generated?: boolean;
 }
 
 export interface KanjiPuzzle {

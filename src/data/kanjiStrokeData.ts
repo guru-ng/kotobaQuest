@@ -31,7 +31,7 @@ export interface KanjiWritingItem {
   id: string;
   kanji: string;
   meaning: string;
-  meaningNe: string;
+  meaningNe?: string;
   onyomi: string[];
   kunyomi: string[];
   level: JLPTLevel;
@@ -39,7 +39,9 @@ export interface KanjiWritingItem {
   strokeRuleSummary: string;
   basicBlocks: KanjiBasicBlock[];
   strokes: KanjiStrokeStep[];
-  examples: Array<{ word: string; reading: string; meaning: string; meaningNe: string }>;
+  examples: Array<{ word: string; reading: string; meaning: string; meaningNe?: string }>;
+  /** True for entries produced by scripts/build-content.ts from open datasets. */
+  generated?: boolean;
 }
 
 export const KANJI_WRITING_LIST: KanjiWritingItem[] = [

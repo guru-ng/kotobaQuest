@@ -75,7 +75,9 @@ export const TRANSLATIONS = {
       backToMenu: 'Back to Menu'
     },
     kanji: {
-      title: 'Kanji Radical Forge',
+      title: 'Kanji Writing Board',
+      loading: 'Loading kanji…',
+      noneForLevel: 'No kanji available for this level yet.',
       subtitle: 'Combine primitive radicals to craft Kanji',
       synthesisForge: 'Synthesis Forge',
       kanjiCodex: 'Kanji Codex',
@@ -123,7 +125,8 @@ export const TRANSLATIONS = {
       practiceAnyway: 'Practice anyway',
       practiceShort: 'Practice',
       practiceMode: 'Practice mode: reviews here don\'t change your schedule.',
-      backToReviews: 'Back to due cards'
+      backToReviews: 'Back to due cards',
+      loading: 'Loading vocabulary…'
     },
     survival: {
       title: 'Survival Phrasebook',
@@ -228,7 +231,9 @@ export const TRANSLATIONS = {
       backToMenu: 'メニューに戻る'
     },
     kanji: {
-      title: '漢字フォージ',
+      title: '漢字の書き方ボード',
+      loading: '漢字を読み込み中…',
+      noneForLevel: 'このレベルの漢字はまだありません。',
       subtitle: '部首を組み合わせて漢字を合成',
       synthesisForge: '漢字合成',
       kanjiCodex: '漢字図鑑',
@@ -276,7 +281,8 @@ export const TRANSLATIONS = {
       practiceAnyway: 'とにかく練習する',
       practiceShort: '練習',
       practiceMode: '練習モード：復習スケジュールは変わりません。',
-      backToReviews: '復習カードに戻る'
+      backToReviews: '復習カードに戻る',
+      loading: '単語を読み込み中…'
     },
     survival: {
       title: 'サバイバル日本語',

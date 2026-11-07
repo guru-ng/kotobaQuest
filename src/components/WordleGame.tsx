@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import confetti from 'canvas-confetti';
-import { WORDLE_WORDS } from '../data/wordleWords';
 import { NEPALI_WORDLE_MAP } from '../data/nepaliData';
 import { evaluateWordleGuess, isWordleWon, computeKeyboardStatus } from '../utils/wordleLogic';
 import { flushRomajiInput, stepRomajiInput } from '../utils/typingLogic';
@@ -20,6 +19,7 @@ import {
   wordleSlotKey
 } from '../utils/wordleDaily';
 import { useGame } from '../context/GameContext';
+import { useContentPack } from '../data/contentPack';
 import { playSuccessChime, playCardFlipSound, speakJapanese } from '../utils/audio';
 import { 
   RotateCcw, 
@@ -55,11 +55,11 @@ interface ResolvedGame {
  * Today's game for a level + length: the saved practice game if the player was
  * in one, otherwise the daily puzzle (restoring any guesses already made today).
  */
-function resolveGame(level: JLPTLevel, length: 3 | 4, forceDaily = false): ResolvedGame {
+function resolveGame(words: WordleWord[], level: JLPTLevel, length: 3 | 4, forceDaily = false): ResolvedGame {
   const date = localDateKey();
   const slot = wordleSlotKey(level, length);
-  const pool = getWordlePool(WORDLE_WORDS, level, length);
-  const dailyWord = pickDailyWord(pool, date, slot) ?? WORDLE_WORDS[0];
+  const pool = getWordlePool(words, level, length);
+  const dailyWord = pickDailyWord(pool, date, slot) ?? words[0];
   const saved = loadWordleSlot(date, slot);
   const validRows = (word: WordleWord, rows: string[][]) =>
     rows.filter(row => row.length === Array.from(word.kana).length).slice(0, MAX_ATTEMPTS);
@@ -89,8 +89,12 @@ const KANA_VOWEL_ROWS = [
 export const WordleGame: React.FC = () => {
   const { settings, currentJLPT, uiLanguage, toggleNepali, recordWordleWin, addXP } = useGame();
   const t = getTranslation(uiLanguage);
-  
-  const [initialGame] = useState<ResolvedGame>(() => resolveGame(currentJLPT, 3));
+  // Wait for the full word list before picking: choosing from the curated
+  // subset first would change today's puzzle once the rest arrived.
+  const { pack, ready } = useContentPack(currentJLPT);
+  const words = pack.wordle;
+
+  const [initialGame] = useState<ResolvedGame>(() => resolveGame(words, currentJLPT, 3));
   const [targetLength, setTargetLength] = useState<3 | 4>(initialGame.length);
   const [currentWord, setCurrentWord] = useState<WordleWord>(initialGame.word);
   const [mode, setMode] = useState<WordleMode>(initialGame.mode);
@@ -105,6 +109,7 @@ export const WordleGame: React.FC = () => {
   const [revealedResultModal, setRevealedResultModal] = useState<boolean>(false);
   const [romajiBuffer, setRomajiBuffer] = useState<string>('');
   const [keyboardMode, setKeyboardMode] = useState<'romaji' | 'kana'>('romaji');
+  // Generated words carry no photo; the kanji card stands in for one
   const [imgError, setImgError] = useState<boolean>(false);
 
   const targetChars = Array.from(currentWord.kana);
@@ -126,28 +131,31 @@ export const WordleGame: React.FC = () => {
   }, []);
 
   // Switching length (or level) opens that combination's daily puzzle / saved game
-  const selectLength = (length: 3 | 4) => applyGame(resolveGame(currentJLPT, length));
+  const selectLength = (length: 3 | 4) => applyGame(resolveGame(words, currentJLPT, length));
 
-  const backToDaily = () => applyGame(resolveGame(currentJLPT, targetLength, true));
+  const backToDaily = () => applyGame(resolveGame(words, currentJLPT, targetLength, true));
 
   // "New puzzle" / "Next word": a random practice word (not today's daily)
   const startNewGame = () => {
     const date = localDateKey();
     const practiceSlot = wordleSlotKey(currentJLPT, targetLength);
-    const pool = getWordlePool(WORDLE_WORDS, currentJLPT, targetLength);
+    const pool = getWordlePool(words, currentJLPT, targetLength);
     const daily = pickDailyWord(pool, date, practiceSlot);
     const avoid = [currentWord.id, ...(daily ? [daily.id] : [])];
     const word = pickPracticeWord(pool, avoid) ?? currentWord;
     applyGame({ date, slot: practiceSlot, length: targetLength, mode: 'practice', word, guesses: [], status: 'playing' });
   };
 
-  // Load the right puzzle when the JLPT level changes (also runs on mount)
+  // Load the right puzzle once the level's full word list is in (also on mount)
   useEffect(() => {
-    applyGame(resolveGame(currentJLPT, targetLength));
-  }, [currentJLPT]); // targetLength intentionally omitted: length changes go through selectLength
+    if (!ready) return;
+    applyGame(resolveGame(words, currentJLPT, targetLength));
+    // targetLength intentionally omitted: length changes go through selectLength
+  }, [currentJLPT, ready, words]);
 
   // Persist progress so a reload doesn't wipe (or replay) today's puzzle
   useEffect(() => {
+    if (!ready) return;
     const entry = { wordId: currentWord.id, guesses, status: gameStatus };
     const existing = loadWordleSlot(gameDate, slot) ?? { mode };
     saveWordleSlot(
@@ -155,7 +163,7 @@ export const WordleGame: React.FC = () => {
       slot,
       mode === 'daily' ? { ...existing, mode, daily: entry } : { ...existing, mode, practice: entry }
     );
-  }, [gameDate, slot, mode, currentWord.id, guesses, gameStatus]);
+  }, [ready, gameDate, slot, mode, currentWord.id, guesses, gameStatus]);
 
   const handleShare = async () => {
     const text = buildWordleShareText({
@@ -384,7 +392,7 @@ export const WordleGame: React.FC = () => {
         <div className="grid grid-cols-12 items-stretch">
           {/* Picture Frame: 4 cols on mobile, 5 cols on sm+ */}
           <div className="col-span-4 sm:col-span-5 relative min-h-[120px] sm:min-h-[160px] bg-slate-950 overflow-hidden">
-            {!imgError ? (
+            {currentWord.imageUrl && !imgError ? (
               <img
                 src={currentWord.imageUrl}
                 alt={currentWord.english}
@@ -426,9 +434,12 @@ export const WordleGame: React.FC = () => {
                 {currentWord.english}
               </h3>
 
-              <p className="text-[11px] sm:text-xs text-slate-400 mt-0.5 sm:mt-1 leading-relaxed line-clamp-2 sm:line-clamp-none">
-                {currentWord.hint}
-              </p>
+              {/* Generated words take both fields from one gloss; don't say it twice */}
+              {currentWord.hint.trim().toLowerCase() !== currentWord.english.trim().toLowerCase() && (
+                <p className="text-[11px] sm:text-xs text-slate-400 mt-0.5 sm:mt-1 leading-relaxed line-clamp-2 sm:line-clamp-none">
+                  {currentWord.hint}
+                </p>
+              )}
 
               {/* Nepali meaning often transliterates the answer (e.g. साकुरा = さくら),
                   so it stays hidden until the puzzle is over */}
