@@ -8,6 +8,7 @@ import { FlashcardsView } from './components/FlashcardsView';
 import { SurvivalGuide } from './components/SurvivalGuide';
 import { AchievementsModal } from './components/AchievementsModal';
 import { WelcomeBanner } from './components/WelcomeBanner';
+import { CreditsModal } from './components/CreditsModal';
 import { GameMode } from './types';
 import { Sparkles, Trophy, X } from 'lucide-react';
 
@@ -26,6 +27,7 @@ const MainApp: React.FC = () => {
   });
 
   const [isAchievementsOpen, setIsAchievementsOpen] = useState<boolean>(false);
+  const [isCreditsOpen, setIsCreditsOpen] = useState<boolean>(false);
 
   // Keep the URL in step with the open mode so refresh / back / sharing keep your place
   useEffect(() => {
@@ -95,16 +97,23 @@ const MainApp: React.FC = () => {
         onClose={() => setIsAchievementsOpen(false)}
       />
 
+      <CreditsModal isOpen={isCreditsOpen} onClose={() => setIsCreditsOpen(false)} />
+
       {/* Editorial Footer */}
       <footer className="border-t border-slate-900 py-4 sm:py-6 text-center text-xs text-slate-600">
         <div className="max-w-6xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-1.5 sm:gap-2">
           <p>KotobaQuest · Japanese Learning Environment</p>
           <div className="flex items-center gap-2 text-slate-500 text-[11px] sm:text-xs">
-            <span>JLPT N5–N1 Grounded</span>
-            <span aria-hidden="true">·</span>
-            <span>Audio Pronunciation</span>
+            <span>JLPT N5–N1</span>
             <span aria-hidden="true">·</span>
             <span>Spaced Repetition</span>
+            <span aria-hidden="true">·</span>
+            <button
+              onClick={() => setIsCreditsOpen(true)}
+              className="underline underline-offset-2 hover:text-slate-300 transition-colors"
+            >
+              Data sources &amp; licences
+            </button>
           </div>
         </div>
       </footer>

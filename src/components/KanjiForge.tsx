@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { KANJI_WRITING_LIST, KanjiWritingItem } from '../data/kanjiStrokeData';
+import { KanjiWritingItem } from '../data/kanjiStrokeData';
+import { useContentPack } from '../data/contentPack';
 import { useGame } from '../context/GameContext';
 import { getTranslation } from '../utils/i18n';
 import { playTaikoBeat, playSuccessChime, speakJapanese } from '../utils/audio';
@@ -24,16 +25,28 @@ interface Point {
   y: number;
 }
 
+const EMPTY_KANJI: KanjiWritingItem = {
+  id: '',
+  kanji: '',
+  meaning: '',
+  onyomi: [],
+  kunyomi: [],
+  level: 'N5',
+  Complexity: 'Basic',
+  strokeRuleSummary: '',
+  basicBlocks: [],
+  strokes: [],
+  examples: []
+};
+
 export const KanjiForge: React.FC = () => {
   const { settings, recordKanjiCrafted, currentJLPT, uiLanguage, toggleNepali } = useGame();
   const t = getTranslation(uiLanguage);
+  const { pack, ready } = useContentPack(currentJLPT);
 
-  // Filter Kanji list by current JLPT, or show all with current JLPT prioritized first
-  const orderedKanjiPool = React.useMemo(() => {
-    const matching = KANJI_WRITING_LIST.filter(k => k.level === currentJLPT);
-    const others = KANJI_WRITING_LIST.filter(k => k.level !== currentJLPT);
-    return [...matching, ...others];
-  }, [currentJLPT]);
+  // Hand-written kanji first (they have Nepali meanings), then the generated
+  // ones for this level, ordered by how common the character is.
+  const orderedKanjiPool = pack.kanji;
 
   const [activeIndex, setActiveIndex] = useState<number>(0);
   const [activeTab, setActiveTab] = useState<'board' | 'codex'>('board');
@@ -57,7 +70,10 @@ export const KanjiForge: React.FC = () => {
 
   const svgBoardRef = useRef<SVGSVGElement | null>(null);
 
-  const currentItem: KanjiWritingItem = orderedKanjiPool[activeIndex % orderedKanjiPool.length] || KANJI_WRITING_LIST[0];
+  // Placeholder for the first paint before this level's kanji have loaded;
+  // the early return below means it never reaches the board.
+  const currentItem: KanjiWritingItem =
+    orderedKanjiPool[activeIndex % Math.max(1, orderedKanjiPool.length)] ?? EMPTY_KANJI;
   const totalStrokes = currentItem.strokes.length;
   const activeStrokeStep = currentItem.strokes[Math.min(currentStrokeIdx, totalStrokes - 1)];
 
@@ -223,6 +239,14 @@ export const KanjiForge: React.FC = () => {
     if (pts.length === 0) return '';
     return pts.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(' ');
   };
+
+  if (orderedKanjiPool.length === 0) {
+    return (
+      <div className="max-w-4xl mx-auto px-2 sm:px-4 py-10 text-center text-sm text-slate-400" data-testid="kanji-loading">
+        {ready ? t.kanji.noneForLevel : t.kanji.loading}
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-4xl mx-auto px-2 sm:px-4 py-2 sm:py-4" data-testid="kanji-forge-view">
@@ -625,7 +649,7 @@ export const KanjiForge: React.FC = () => {
                     <h3 className="text-base sm:text-lg font-bold text-white">
                       {currentItem.meaning}
                     </h3>
-                    {settings.showNepali && (
+                    {settings.showNepali && currentItem.meaningNe && (
                       <div className="text-xs font-semibold text-emerald-400 mt-0.5">
                         नेपाली: {currentItem.meaningNe}
                       </div>
@@ -744,7 +768,7 @@ export const KanjiForge: React.FC = () => {
                     </div>
                     <div className="text-right">
                       <div className="text-slate-200 font-medium">{ex.meaning}</div>
-                      {settings.showNepali && (
+                      {settings.showNepali && ex.meaningNe && (
                         <div className="text-[11px] text-emerald-400">{ex.meaningNe}</div>
                       )}
                     </div>
@@ -784,7 +808,7 @@ export const KanjiForge: React.FC = () => {
                         {item.level}
                       </span>
                     </div>
-                    {settings.showNepali && (
+                    {settings.showNepali && item.meaningNe && (
                       <div className="text-[11px] text-emerald-400 truncate mt-0.5">
                         {item.meaningNe}
                       </div>
