@@ -294,11 +294,15 @@ export const TypingDojo: React.FC = () => {
                 </button>
               </div>
 
-              {inputValue && (
-                <div className="text-xs text-slate-500 mt-2 font-mono">
-                  {t.typing.converting}: <span className="text-rose-300 font-bold">{romajiToHiragana(inputValue)}</span>
-                </div>
-              )}
+              {/* Always rendered so the panel doesn't jump on the first
+                  keystroke of each word. */}
+              <div className="text-xs text-slate-500 mt-2 font-mono h-4" aria-live="polite">
+                {inputValue && (
+                  <>
+                    {t.typing.converting}: <span className="text-rose-300 font-bold">{romajiToHiragana(inputValue)}</span>
+                  </>
+                )}
+              </div>
             </div>
 
           </div>
