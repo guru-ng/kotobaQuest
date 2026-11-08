@@ -544,9 +544,12 @@ export const WordleGame: React.FC = () => {
         </div>
 
         {/* Compact inline feedback if player made previous attempts (no bulky extra grid rows) */}
-        {guesses.length > 0 && (
-          <div className="flex flex-wrap items-center justify-center gap-1.5 mt-2.5 text-xs">
-            <span className="text-slate-500">
+        {/* Fixed height and no wrapping: previous guesses must not push the
+            keyboard down as they accumulate. */}
+        <div className="h-7 w-full flex items-center justify-center gap-1.5 mt-2.5 text-xs overflow-x-auto scrollbar-none">
+          {guesses.length > 0 && (
+            <>
+            <span className="text-slate-500 shrink-0">
               {uiLanguage === 'ja' ? '履歴:' : 'Tries:'}
             </span>
             {guesses.map((g, idx) => {
@@ -554,7 +557,7 @@ export const WordleGame: React.FC = () => {
               return (
                 <div
                   key={idx}
-                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-slate-900 border border-slate-800 font-['Kosugi_Maru']"
+                  className="inline-flex shrink-0 items-center gap-1 px-2 py-0.5 rounded bg-slate-900 border border-slate-800 font-['Kosugi_Maru']"
                 >
                   {g.map((ch, cIdx) => {
                     const st = evalRow[cIdx];
@@ -574,12 +577,13 @@ export const WordleGame: React.FC = () => {
               );
             })}
             {gameStatus === 'playing' && showingLastEvaluation && (
-              <span className="text-slate-400 ml-1 text-[11px]">
+              <span className="text-slate-400 ml-1 text-[11px] shrink-0 whitespace-nowrap">
                 · {uiLanguage === 'ja' ? '続けて入力して再挑戦' : 'Type any key to try again'}
               </span>
             )}
-          </div>
-        )}
+            </>
+          )}
+        </div>
 
         {/* Finished (also after a reload): share or move on */}
         {gameStatus !== 'playing' && !revealedResultModal && (
@@ -602,14 +606,17 @@ export const WordleGame: React.FC = () => {
         )}
       </div>
 
-      {romajiBuffer && (
-        <div className="text-center mb-2.5">
+      {/* The slot is always rendered: mounting it only while a letter is
+          pending moved the keyboard under the player's finger between
+          keystrokes. */}
+      <div className="h-7 flex items-center justify-center mb-2.5" aria-live="polite">
+        {romajiBuffer && (
           <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-md bg-indigo-500/10 border border-indigo-500/20 text-indigo-300 font-mono text-xs">
             <span>Romaji:</span>
             <span className="font-bold text-white uppercase">{romajiBuffer}</span>
           </span>
-        </div>
-      )}
+        )}
+      </div>
 
       {/* Input Mode Selector Bar */}
       <div className="flex items-center justify-between gap-2 mb-2.5 text-xs text-slate-400">
