@@ -337,5 +337,249 @@ export const SURVIVAL_CATEGORIES: SurvivalCategory[] = [
         tip: 'Only for serious emergency situations.'
       }
     ]
+  },
+  {
+    id: 'restaurant',
+    title: 'Restaurant Work',
+    titleJa: '飲食店の接客',
+    icon: 'UtensilsCrossed',
+    description: 'Serving customers on the floor: seating, taking orders, clearing plates and the register',
+    descriptionJa: 'ホールでの接客 — 席案内、注文取り、料理提供、会計までの定型表現',
+    phrases: [
+      {
+        id: 'r1',
+        japanese: 'いらっしゃいませ。',
+        kana: 'いらっしゃいませ。',
+        romaji: 'Irasshaimase.',
+        english: 'Welcome. (said to every customer entering)',
+        register: 'Service Greeting',
+        tip: 'No reply is expected. Customers do not answer it, and you do not wait for one.'
+      },
+      {
+        id: 'r2',
+        japanese: '何名様でしょうか。',
+        kana: 'なんめいさま でしょうか。',
+        romaji: 'Nanmeisama deshou ka.',
+        english: 'How many people?',
+        register: 'Service Keigo',
+        tip: '様 (sama) is what makes it polite. 何名ですか alone sounds blunt to a customer.'
+      },
+      {
+        id: 'r3',
+        japanese: 'お好きな席へどうぞ。',
+        kana: 'おすきな せき へ どうぞ。',
+        romaji: 'Osuki na seki e douzo.',
+        english: 'Please sit anywhere you like.',
+        register: 'Service Keigo',
+        tip: 'Use when the restaurant is not full. Say it and then stop following them — hovering reads as if you are about to seat them after all. 空いているお席へどうぞ works too.'
+      },
+      {
+        id: 'r4',
+        japanese: 'こちらへどうぞ。',
+        kana: 'こちら へ どうぞ。',
+        romaji: 'Kochira e douzo.',
+        english: 'This way, please.',
+        register: 'Service Keigo',
+        tip: 'The other fork after asking the party size: you walk them to a table instead of letting them choose.'
+      },
+      {
+        id: 'r5',
+        japanese: 'ただいま満席でございます。',
+        kana: 'ただいま まんせき で ございます。',
+        romaji: 'Tadaima manseki de gozaimasu.',
+        english: 'We are full at the moment.',
+        register: 'Service Keigo',
+        tip: 'Follow it with how long the wait is if you know, or offer the waiting list.'
+      },
+      {
+        id: 'r6',
+        japanese: '少々お待ちくださいませ。',
+        kana: 'しょうしょう おまち くださいませ。',
+        romaji: 'Shoushou omachi kudasaimase.',
+        english: 'One moment, please.',
+        register: 'Service Keigo',
+        tip: 'くださいませ is softer than ください and is standard on the floor.'
+      },
+      {
+        id: 'r7',
+        japanese: 'ご注文はお決まりでしょうか。',
+        kana: 'ごちゅうもん は おきまり でしょうか。',
+        romaji: 'Go-chuumon wa okimari deshou ka.',
+        english: 'Are you ready to order?',
+        register: 'Service Keigo',
+        tip: 'Ask once, then give them space. Asking again too soon pressures the table.'
+      },
+      {
+        id: 'r8',
+        japanese: '辛さはいかがなさいますか。',
+        kana: 'からさ は いかが なさいますか。',
+        romaji: 'Karasa wa ikaga nasaimasu ka.',
+        english: 'How spicy would you like it?',
+        register: 'Service Keigo',
+        tip: 'Comes up constantly in Nepali and Indian restaurants. Have the levels ready: 甘口 (amakuchi, mild), 中辛 (chuukara, medium), 辛口 (karakuchi, hot).'
+      },
+      {
+        id: 'r9',
+        japanese: 'ナンとライス、どちらになさいますか。',
+        kana: 'ナン と ライス、どちら に なさいますか。',
+        romaji: 'Nan to raisu, dochira ni nasaimasu ka.',
+        english: 'Naan or rice?',
+        register: 'Service Keigo',
+        tip: 'なさいますか is the respectful form of します — use it when asking a customer to choose.'
+      },
+      {
+        id: 'r10',
+        japanese: 'お飲み物はいかがなさいますか。',
+        kana: 'おのみもの は いかが なさいますか。',
+        romaji: 'O-nomimono wa ikaga nasaimasu ka.',
+        english: 'Anything to drink?',
+        register: 'Service Keigo',
+        tip: 'Ask while taking the food order, not after. A second trip for drinks slows the whole table.'
+      },
+      {
+        id: 'r11',
+        japanese: '復唱させていただきます。',
+        kana: 'ふくしょう させて いただきます。',
+        romaji: 'Fukushou sasete itadakimasu.',
+        english: 'Let me repeat your order back to you.',
+        register: 'Service Keigo (Humble)',
+        tip: 'Read the order back before leaving the table. It catches mistakes while they are still free to fix.'
+      },
+      {
+        id: 'r12',
+        japanese: 'ご注文は以上でよろしいでしょうか。',
+        kana: 'ごちゅうもん は いじょう で よろしい でしょうか。',
+        romaji: 'Go-chuumon wa ijou de yoroshii deshou ka.',
+        english: 'Is that everything?',
+        register: 'Service Keigo',
+        tip: 'Say よろしいでしょうか, never よろしかったでしょうか. The past tense is wrong and extremely common among new staff.'
+      },
+      {
+        id: 'r13',
+        japanese: '申し訳ございません、ただいま品切れでございます。',
+        kana: 'もうしわけ ございません、ただいま しなぎれ で ございます。',
+        romaji: 'Moushiwake gozaimasen, tadaima shinagire de gozaimasu.',
+        english: 'I am sorry, that is sold out.',
+        register: 'Service Keigo (Apology)',
+        tip: 'Offer an alternative in the same breath, or the customer has to start choosing over again.'
+      },
+      {
+        id: 'r14',
+        japanese: 'お待たせいたしました。',
+        kana: 'おまたせ いたしました。',
+        romaji: 'Omatase itashimashita.',
+        english: 'Thank you for waiting.',
+        register: 'Service Keigo (Humble)',
+        tip: 'Said as you put the food down, every time. お待たせいたしました outranks お待たせしました — use the first with customers.'
+      },
+      {
+        id: 'r15',
+        japanese: '熱いのでお気をつけください。',
+        kana: 'あつい ので おきをつけ ください。',
+        romaji: 'Atsui node oki o tsuke kudasai.',
+        english: 'Careful, it is hot.',
+        register: 'Service Keigo',
+        tip: 'For sizzling plates and clay pots. Say it before you let go of the dish, not after.'
+      },
+      {
+        id: 'r16',
+        japanese: '以上でお揃いでしょうか。',
+        kana: 'いじょう で おそろい でしょうか。',
+        romaji: 'Ijou de osoroi deshou ka.',
+        english: 'Is everything here?',
+        register: 'Service Keigo',
+        tip: 'Ask once the last dish lands. Catches a missing order before the table has to flag you down.'
+      },
+      {
+        id: 'r17',
+        japanese: 'ごゆっくりどうぞ。',
+        kana: 'ごゆっくり どうぞ。',
+        romaji: 'Goyukkuri douzo.',
+        english: 'Please take your time.',
+        register: 'Service Keigo',
+        tip: 'Your exit line from the table once the food is served.'
+      },
+      {
+        id: 'r18',
+        japanese: 'お下げしてもよろしいでしょうか。',
+        kana: 'おさげ しても よろしい でしょうか。',
+        romaji: 'Osage shite mo yoroshii deshou ka.',
+        english: 'May I clear this?',
+        register: 'Service Keigo',
+        tip: 'Ask when a plate looks finished — empty, or chopsticks laid across it — and never while reaching for it. Hands at your side, ask, then take it once they answer. If they say まだです, step back with 失礼いたしました and leave it. At an izakaya, clear in batches rather than hovering after each dish.'
+      },
+      {
+        id: 'r19',
+        japanese: 'ただいま確認いたします。',
+        kana: 'ただいま かくにん いたします。',
+        romaji: 'Tadaima kakunin itashimasu.',
+        english: 'I will check right away.',
+        register: 'Service Keigo (Humble)',
+        tip: 'Better than guessing. Go and find out, then come back with an answer.'
+      },
+      {
+        id: 'r20',
+        japanese: 'すぐにお作り直しいたします。',
+        kana: 'すぐに おつくりなおし いたします。',
+        romaji: 'Sugu ni otsukurinaoshi itashimasu.',
+        english: 'I will have it remade immediately.',
+        register: 'Service Keigo (Humble)',
+        tip: 'For a wrong or cold dish. Say it before the customer has to ask for it.'
+      },
+      {
+        id: 'r21',
+        japanese: 'お会計は一緒でよろしいでしょうか。',
+        kana: 'おかいけい は いっしょ で よろしい でしょうか。',
+        romaji: 'O-kaikei wa issho de yoroshii deshou ka.',
+        english: 'One bill for the table?',
+        register: 'Service Keigo',
+        tip: 'Ask before you start ringing anything up.'
+      },
+      {
+        id: 'r22',
+        japanese: 'お会計は別々でよろしいでしょうか。',
+        kana: 'おかいけい は べつべつ で よろしい でしょうか。',
+        romaji: 'O-kaikei wa betsubetsu de yoroshii deshou ka.',
+        english: 'Separate bills, is that right?',
+        register: 'Service Keigo',
+        tip: '別々 means each pays for their own items; 割り勘 (warikan) means the total split evenly. Customers use both loosely, so confirm which they mean before adding anything up.'
+      },
+      {
+        id: 'r23',
+        japanese: '千円お預かりいたします。',
+        kana: 'せんえん おあずかり いたします。',
+        romaji: 'Sen-en oazukari itashimasu.',
+        english: 'Taking one thousand yen.',
+        register: 'Service Keigo (Humble)',
+        tip: 'Say the amount back as you take it. And say 千円でございます for the price — 千円になります is the classic beginner error, since nothing is becoming a thousand yen.'
+      },
+      {
+        id: 'r24',
+        japanese: 'お釣りとレシートでございます。',
+        kana: 'おつり と レシート で ございます。',
+        romaji: 'Otsuri to reshiito de gozaimasu.',
+        english: 'Your change and receipt.',
+        register: 'Service Keigo',
+        tip: 'Hand change with both hands. Also drop 〜の方 (hou) — お釣りの方 is filler, お釣りでございます is correct.'
+      },
+      {
+        id: 'r25',
+        japanese: '現金のみとなっております。',
+        kana: 'げんきん のみ と なって おります。',
+        romaji: 'Genkin nomi to natte orimasu.',
+        english: 'We take cash only.',
+        register: 'Service Keigo',
+        tip: 'Say it when they are seated, not at the register. Finding out at the end is what upsets people.'
+      },
+      {
+        id: 'r26',
+        japanese: 'またお越しくださいませ。',
+        kana: 'また おこし くださいませ。',
+        romaji: 'Mata okoshi kudasaimase.',
+        english: 'Please come again.',
+        register: 'Service Keigo',
+        tip: 'Pair it with ありがとうございました as they leave.'
+      }
+    ]
   }
 ];
