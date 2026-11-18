@@ -7,9 +7,30 @@ export const TRANSLATIONS = {
     modes: {
       wordle: 'Wordle',
       typing: 'Typing Dojo',
-      kanji: 'Kanji Forge',
+      kanji: 'Kanji Writing Board',
       flashcards: 'Flashcards',
-      survival: 'Survival Guide'
+      survival: 'Survival Phrasebook'
+    },
+    app: {
+      offline: 'Offline — your saved levels still work',
+      updateReady: 'A new version is ready.',
+      reload: 'Reload'
+    },
+    home: {
+      due: 'due',
+      fresh: 'new',
+      of: 'of',
+      practised: 'practised',
+      best: 'Best',
+      notPlayed: 'Not played yet',
+      situations: 'situations',
+      dayStreak: 'day streak',
+      puzzleReady: "Today's puzzle ready",
+      puzzleStarted: 'In progress',
+      solvedIn: 'Solved in',
+      tries: 'tries',
+      puzzleDone: 'Answer revealed',
+      backToHome: 'Home'
     },
     nav: {
       streak: 'Streak',
@@ -163,9 +184,30 @@ export const TRANSLATIONS = {
     modes: {
       wordle: 'ワードル',
       typing: 'タイピング道場',
-      kanji: '漢字フォージ',
+      kanji: '漢字の書き方ボード',
       flashcards: '単語カード',
-      survival: 'サバイバルガイド'
+      survival: 'サバイバル日本語'
+    },
+    app: {
+      offline: 'オフライン中 — 保存済みのレベルは使えます',
+      updateReady: '新しいバージョンがあります。',
+      reload: '再読み込み'
+    },
+    home: {
+      due: '復習',
+      fresh: '新規',
+      of: '/',
+      practised: '練習済み',
+      best: '最高',
+      notPlayed: 'まだ未プレイ',
+      situations: '場面',
+      dayStreak: '日連続',
+      puzzleReady: '今日の問題',
+      puzzleStarted: '挑戦中',
+      solvedIn: 'クリア',
+      tries: '回',
+      puzzleDone: '答えを確認済み',
+      backToHome: 'ホーム'
     },
     nav: {
       streak: '連続学習',

@@ -12,6 +12,7 @@ import {
   Sun,
   Moon,
   ChevronDown,
+  ChevronLeft,
   Check,
   SlidersHorizontal,
   Gamepad2,
@@ -22,8 +23,9 @@ import {
 } from 'lucide-react';
 
 interface NavbarProps {
-  activeTab: GameMode;
-  onSelectTab: (tab: GameMode) => void;
+  /** null while the home grid is showing */
+  activeTab: GameMode | null;
+  onGoHome: () => void;
   onOpenAchievements: () => void;
 }
 
@@ -35,7 +37,7 @@ const JLPT_LEVELS: Array<{ level: JLPTLevel; descEn: string; descJa: string }> =
   { level: 'N1', descEn: 'Advanced', descJa: '上級' }
 ];
 
-export const Navbar: React.FC<NavbarProps> = ({ activeTab, onSelectTab, onOpenAchievements }) => {
+export const Navbar: React.FC<NavbarProps> = ({ activeTab, onGoHome, onOpenAchievements }) => {
   const { 
     stats, 
     settings, 
@@ -74,7 +76,7 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, onSelectTab, onOpenAc
     { id: 'survival', label: t.modes.survival, icon: <Compass className="w-3.5 h-3.5 text-purple-400" /> }
   ];
 
-  const activeModeObj = navLinks.find(l => l.id === activeTab) || navLinks[0];
+  const activeMode = navLinks.find(l => l.id === activeTab);
 
   return (
     <header ref={navRef} className="bg-slate-950/95 backdrop-blur-md border-b border-slate-800/80 sticky top-0 z-40">
@@ -85,7 +87,7 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, onSelectTab, onOpenAc
           <div className="flex items-center gap-2 sm:gap-3 min-w-0">
             <button 
               onClick={() => {
-                onSelectTab('wordle');
+                onGoHome();
                 setOpenDropdown(null);
               }}
               className="flex items-center gap-2 text-left group focus:outline-none shrink-0"
@@ -98,76 +100,19 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, onSelectTab, onOpenAc
               </span>
             </button>
 
-            {/* Mobile & Tablet Mode Selection Dropdown (<lg) */}
-            <div className="relative xl:hidden">
+            {activeMode && (
               <button
                 type="button"
-                onClick={() => setOpenDropdown(prev => (prev === 'mode' ? null : 'mode'))}
-                data-testid="mobile-mode-dropdown-btn"
-                aria-expanded={openDropdown === 'mode'}
-                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-800 text-xs font-bold text-white transition-colors"
+                onClick={onGoHome}
+                data-testid="back-to-home"
+                className="flex items-center gap-1.5 pl-1.5 pr-2.5 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-800 text-xs font-bold text-white transition-colors min-w-0"
               >
-                {activeModeObj.icon}
-                <span className="truncate max-w-[110px] sm:max-w-[150px]">{activeModeObj.label}</span>
-                <ChevronDown className={`w-3.5 h-3.5 text-slate-400 transition-transform ${openDropdown === 'mode' ? 'rotate-180' : ''}`} />
+                <ChevronLeft className="w-4 h-4 text-slate-400 shrink-0" />
+                {activeMode.icon}
+                <span className="truncate max-w-[104px] sm:max-w-[180px]">{activeMode.label}</span>
               </button>
-
-              {openDropdown === 'mode' && (
-                <div
-                  data-testid="mobile-mode-dropdown-menu"
-                  className="absolute left-0 mt-1.5 w-52 rounded-xl bg-slate-900 border border-slate-800 shadow-2xl py-1.5 z-50 animate-in fade-in duration-100"
-                >
-                  <div className="px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-500">
-                    {uiLanguage === 'ja' ? '学習モード選択' : 'Select Learning Mode'}
-                  </div>
-                  {navLinks.map(link => {
-                    const isActive = activeTab === link.id;
-                    return (
-                      <button
-                        key={link.id}
-                        type="button"
-                        onClick={() => {
-                          onSelectTab(link.id);
-                          setOpenDropdown(null);
-                        }}
-                        className={`w-full px-3 py-2 text-left text-xs font-semibold flex items-center justify-between transition-colors ${
-                          isActive
-                            ? 'bg-rose-500/10 text-rose-400 font-bold'
-                            : 'text-slate-300 hover:bg-slate-800 hover:text-white'
-                        }`}
-                      >
-                        <span className="flex items-center gap-2">
-                          {link.icon}
-                          <span>{link.label}</span>
-                        </span>
-                        {isActive && <Check className="w-3.5 h-3.5 text-rose-400" />}
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
+            )}
           </div>
-
-          {/* Center Zone: Desktop 5-Mode Navigation Links (lg+) */}
-          <nav aria-label="Game Modes" className="hidden xl:flex items-center gap-1">
-            {navLinks.map(link => {
-              const isActive = activeTab === link.id;
-              return (
-                <button
-                  key={link.id}
-                  onClick={() => onSelectTab(link.id)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap shrink-0 ${
-                    isActive
-                      ? 'bg-slate-800 text-white shadow-sm border border-slate-700/80 font-bold'
-                      : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900/60'
-                  }`}
-                >
-                  {link.label}
-                </button>
-              );
-            })}
-          </nav>
 
           {/* Right Zone: JLPT Dropdown, Nepali & Language Controls, Theme & Options */}
           <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
