@@ -11,6 +11,11 @@ export const TRANSLATIONS = {
       flashcards: 'Flashcards',
       survival: 'Survival Phrasebook'
     },
+    app: {
+      offline: 'Offline — your saved levels still work',
+      updateReady: 'A new version is ready.',
+      reload: 'Reload'
+    },
     home: {
       due: 'due',
       fresh: 'new',
@@ -182,6 +187,11 @@ export const TRANSLATIONS = {
       kanji: '漢字の書き方ボード',
       flashcards: '単語カード',
       survival: 'サバイバル日本語'
+    },
+    app: {
+      offline: 'オフライン中 — 保存済みのレベルは使えます',
+      updateReady: '新しいバージョンがあります。',
+      reload: '再読み込み'
     },
     home: {
       due: '復習',

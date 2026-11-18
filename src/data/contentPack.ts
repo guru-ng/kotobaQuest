@@ -30,6 +30,37 @@ const curatedFor = (level: JLPTLevel): ContentPack => ({
 const cache = new Map<JLPTLevel, ContentPack>();
 const inFlight = new Map<JLPTLevel, Promise<ContentPack>>();
 
+/** Must match the DATA cache name in scripts/build-sw.ts. */
+const DATA_CACHE = 'kq-data-v1';
+
+/**
+ * Puts a level's files in the offline cache.
+ *
+ * On a first visit the service worker is still installing when these are
+ * fetched, so it never sees the requests — and the pack is memoised, so it is
+ * never fetched again. Without this, a level opened on the first visit would
+ * be missing offline.
+ */
+async function keepForOffline(urls: string[]): Promise<void> {
+  try {
+    if (!('serviceWorker' in navigator) || !('caches' in window)) return;
+    // The worker is usually still activating when the first level loads, so
+    // wait for it rather than checking for a controller that isn't there yet.
+    const ready = await Promise.race([
+      navigator.serviceWorker.ready,
+      new Promise<null>(resolve => setTimeout(() => resolve(null), 5000))
+    ]);
+    if (!ready) return;
+    const cache = await caches.open(DATA_CACHE);
+    const missing = (await Promise.all(urls.map(async u => ((await cache.match(u)) ? null : u)))).filter(
+      (u): u is string => u !== null
+    );
+    if (missing.length) await cache.addAll(missing);
+  } catch {
+    // Storage full or unavailable: the app still works online.
+  }
+}
+
 async function fetchJson<T>(url: string): Promise<T[]> {
   const res = await fetch(url);
   if (!res.ok) throw new Error(`${url}: ${res.status}`);
@@ -45,13 +76,14 @@ export async function loadContentPack(level: JLPTLevel): Promise<ContentPack> {
   if (existing) return existing;
 
   const slug = level.toLowerCase();
+  const urls = [`/data/wordle-${slug}.json`, `/data/vocab-${slug}.json`, `/data/kanji-${slug}.json`];
   const promise = (async () => {
     const curated = curatedFor(level);
     try {
       const [wordle, vocab, kanji] = await Promise.all([
-        fetchJson<WordleWord>(`/data/wordle-${slug}.json`),
-        fetchJson<VocabWord>(`/data/vocab-${slug}.json`),
-        fetchJson<KanjiWritingItem>(`/data/kanji-${slug}.json`)
+        fetchJson<WordleWord>(urls[0]),
+        fetchJson<VocabWord>(urls[1]),
+        fetchJson<KanjiWritingItem>(urls[2])
       ]);
       const pack: ContentPack = {
         wordle: [...curated.wordle, ...wordle],
@@ -60,6 +92,7 @@ export async function loadContentPack(level: JLPTLevel): Promise<ContentPack> {
         complete: true
       };
       cache.set(level, pack);
+      void keepForOffline(urls);
       return pack;
     } catch {
       // Offline or data not deployed: the curated set alone keeps the app usable
