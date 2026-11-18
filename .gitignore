@@ -9,3 +9,6 @@ coverage/
 
 # Datasets checked out by scripts/fetch-sources.sh
 .data-sources
+
+# This project installs with bun; a second lockfile confuses CI detection
+package-lock.json
