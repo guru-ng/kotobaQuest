@@ -43,7 +43,7 @@ export const WelcomeBanner: React.FC<{ showHero?: boolean }> = ({ showHero = tru
           : 'Wordle, typing, kanji stroke order and flashcards. Free, no sign-up, with Nepali explanations.'}
       </p>
       <p className="text-[11px] sm:text-xs text-rose-300 font-semibold mt-1.5">
-        {ja ? '↓ まずは今日のワードルから' : '↓ Start with today\'s puzzle below. Type in romaji, no Japanese keyboard needed.'}
+        {ja ? '↓ 好きなカードをタップして始めよう。ローマ字入力でOK。' : '↓ Tap any card to start. You can type in romaji — no Japanese keyboard needed.'}
       </p>
       <button
         onClick={dismiss}

@@ -8,6 +8,7 @@ import { FlashcardsView } from './components/FlashcardsView';
 import { SurvivalGuide } from './components/SurvivalGuide';
 import { AchievementsModal } from './components/AchievementsModal';
 import { WelcomeBanner } from './components/WelcomeBanner';
+import { HomeScreen } from './components/HomeScreen';
 import { CreditsModal } from './components/CreditsModal';
 import { GameMode } from './types';
 import { Sparkles, Trophy, X } from 'lucide-react';
@@ -15,7 +16,8 @@ import { Sparkles, Trophy, X } from 'lucide-react';
 const MainApp: React.FC = () => {
   const { newAchievementUnlocked, clearAchievementNotification, uiLanguage } = useGame();
   
-  const [activeTab, setActiveTab] = useState<GameMode>(() => {
+  // null = the home grid. ?tab= names an activity.
+  const [activeTab, setActiveTab] = useState<GameMode | null>(() => {
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);
       const tabParam = params.get('tab') as GameMode;
@@ -23,7 +25,7 @@ const MainApp: React.FC = () => {
         return tabParam;
       }
     }
-    return 'wordle';
+    return null;
   });
 
   const [isAchievementsOpen, setIsAchievementsOpen] = useState<boolean>(false);
@@ -32,10 +34,20 @@ const MainApp: React.FC = () => {
   // Keep the URL in step with the open mode so refresh / back / sharing keep your place
   useEffect(() => {
     const url = new URL(window.location.href);
-    if (activeTab === 'wordle') url.searchParams.delete('tab');
+    if (activeTab === null) url.searchParams.delete('tab');
     else url.searchParams.set('tab', activeTab);
-    if (url.href !== window.location.href) window.history.replaceState(null, '', url);
+    if (url.href !== window.location.href) window.history.pushState(null, '', url);
   }, [activeTab]);
+
+  // The browser back button returns to the home grid
+  useEffect(() => {
+    const onPop = () => {
+      const tab = new URLSearchParams(window.location.search).get('tab') as GameMode;
+      setActiveTab(['wordle', 'typing', 'kanji', 'flashcards', 'survival'].includes(tab) ? tab : null);
+    };
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
+  }, []);
 
   useEffect(() => {
     document.documentElement.lang = uiLanguage === 'ja' ? 'ja' : 'en';
@@ -53,15 +65,16 @@ const MainApp: React.FC = () => {
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-['Plus_Jakarta_Sans',sans-serif]">
       {/* Unified Top Navigation (Follows Top Bar Contract) */}
-      <Navbar 
-        activeTab={activeTab} 
-        onSelectTab={setActiveTab} 
-        onOpenAchievements={() => setIsAchievementsOpen(true)} 
+      <Navbar
+        activeTab={activeTab}
+        onGoHome={() => setActiveTab(null)}
+        onOpenAchievements={() => setIsAchievementsOpen(true)}
       />
 
       {/* Main Content Area with Responsive Mobile Whitespace */}
       <main className="flex-1 w-full max-w-6xl mx-auto px-2 sm:px-6 lg:px-8 py-3 sm:py-6">
-        <WelcomeBanner showHero={activeTab === 'wordle'} />
+        <WelcomeBanner showHero={activeTab === null} />
+        {activeTab === null && <HomeScreen onSelectTab={setActiveTab} />}
         {activeTab === 'wordle' && <WordleGame />}
         {activeTab === 'typing' && <TypingDojo />}
         {activeTab === 'kanji' && <KanjiForge />}
