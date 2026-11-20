@@ -1,8 +1,9 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Gamepad2, Keyboard, Layers, PenLine, Compass, Flame } from 'lucide-react';
 import { GameMode } from '../types';
 import { useGame } from '../context/GameContext';
 import { useContentPack } from '../data/contentPack';
+import { useReducedMotion } from '../utils/useReducedMotion';
 import { SURVIVAL_CATEGORIES } from '../data/survivalPhrases';
 import { getTranslation } from '../utils/i18n';
 import { buildReviewQueue, calculateLevelFromXP } from '../utils/srsLogic';
@@ -32,6 +33,13 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onSelectTab }) => {
   const t = getTranslation(uiLanguage);
   const { pack, ready } = useContentPack(currentJLPT);
   const level = calculateLevelFromXP(stats.xp);
+  const reducedMotion = useReducedMotion();
+  // The XP bar grows from empty on arrival rather than appearing already full
+  const [barFilled, setBarFilled] = useState(false);
+  useEffect(() => {
+    const id = window.setTimeout(() => setBarFilled(true), 80);
+    return () => clearTimeout(id);
+  }, []);
   const ja = uiLanguage === 'ja';
 
   const { dueCount, newCount } = buildReviewQueue(pack.vocab, srsItems);
@@ -110,8 +118,8 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onSelectTab }) => {
         <div className="flex items-center gap-3 mt-3">
           <div className="flex-1 h-1.5 rounded-full bg-slate-800 overflow-hidden">
             <div
-              className="h-full bg-rose-500 rounded-full transition-all"
-              style={{ width: `${level.progressPercent}%` }}
+              className="h-full bg-rose-500 rounded-full transition-[width] duration-700 ease-out motion-reduce:transition-none"
+              style={{ width: `${barFilled || reducedMotion ? level.progressPercent : 0}%` }}
             />
           </div>
           <span className="text-xs font-bold text-slate-400 tabular-nums shrink-0">
@@ -142,12 +150,15 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onSelectTab }) => {
       </div>
 
       <div className="grid grid-cols-2 gap-3">
-        {tiles.map(tile => (
+        {tiles.map((tile, i) => (
           <button
             key={tile.id}
             onClick={() => onSelectTab(tile.id)}
             data-testid={`home-tile-${tile.id}`}
-            className={`relative overflow-hidden rounded-2xl bg-slate-900/60 border border-slate-800 hover:border-slate-700 hover:bg-slate-900 transition-colors text-left p-4 flex ${
+            style={reducedMotion ? undefined : { animationDelay: `${i * 55}ms` }}
+            className={`kq-rise relative overflow-hidden rounded-2xl bg-slate-900/60 border border-slate-800 text-left p-4 flex
+              hover:border-slate-700 hover:bg-slate-900 active:scale-[.97]
+              transition-[background-color,border-color,transform] duration-150 motion-reduce:transition-none ${
               tile.wide
                 ? 'col-span-2 items-center gap-3.5 h-[86px]'
                 : 'flex-col justify-between h-[156px]'
@@ -169,8 +180,14 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onSelectTab }) => {
             <span className="relative">
               <span className="block text-[15px] font-bold text-white">{tile.label}</span>
               <span
-                className={`block text-xs font-semibold mt-1 ${tile.pending ? tile.accent : 'text-slate-400'}`}
+                className={`flex items-center gap-1.5 text-xs font-semibold mt-1 ${tile.pending ? tile.accent : 'text-slate-400'}`}
               >
+                {tile.pending && (
+                  <span
+                    aria-hidden="true"
+                    className="kq-dot w-1.5 h-1.5 rounded-full bg-current shrink-0"
+                  />
+                )}
                 {tile.status}
               </span>
             </span>
