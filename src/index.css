@@ -58,3 +58,24 @@ html.light-theme .bg-emerald-500 * {
   -ms-overflow-style: none;
   scrollbar-width: none;
 }
+
+/* Wordle tile reveal: the tile turns edge-on, the colour is swapped at that
+   midpoint by React, then it turns back. Keep REVEAL_STEP_MS in
+   WordleGame.tsx equal to half this duration or the colour will show early. */
+@keyframes kq-tile-flip {
+  0% { transform: rotateX(0deg); }
+  50% { transform: rotateX(-90deg); }
+  100% { transform: rotateX(0deg); }
+}
+
+.kq-tile-flip {
+  animation: kq-tile-flip 360ms ease-in-out both;
+  backface-visibility: hidden;
+}
+
+/* Someone who asked for less motion still needs the result, just not the spin */
+@media (prefers-reduced-motion: reduce) {
+  .kq-tile-flip {
+    animation: none;
+  }
+}

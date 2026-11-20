@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import confetti from 'canvas-confetti';
 import { NEPALI_WORDLE_MAP } from '../data/nepaliData';
 import { evaluateWordleGuess, isWordleWon, computeKeyboardStatus } from '../utils/wordleLogic';
@@ -20,6 +20,7 @@ import {
 } from '../utils/wordleDaily';
 import { useGame } from '../context/GameContext';
 import { useContentPack } from '../data/contentPack';
+import { useReducedMotion } from '../utils/useReducedMotion';
 import { playSuccessChime, playCardFlipSound, speakJapanese } from '../utils/audio';
 import { 
   RotateCcw, 
@@ -34,6 +35,9 @@ import {
 } from 'lucide-react';
 
 const MAX_ATTEMPTS = 6;
+
+/** Half of the .kq-tile-flip duration in index.css: the tile is edge-on here. */
+const REVEAL_STEP_MS = 180;
 
 const QWERTY_ROWS = [
   ['Q', 'W', 'E', 'R', 'T', 'Y', 'U', 'I', 'O', 'P'],
@@ -111,6 +115,10 @@ export const WordleGame: React.FC = () => {
   const [keyboardMode, setKeyboardMode] = useState<'romaji' | 'kana'>('romaji');
   // Generated words carry no photo; the kanji card stands in for one
   const [imgError, setImgError] = useState<boolean>(false);
+  // How many tiles of the last guess have had their colour turned face-up
+  const [revealCount, setRevealCount] = useState<number>(0);
+  const revealTimers = useRef<number[]>([]);
+  const reducedMotion = useReducedMotion();
 
   const targetChars = Array.from(currentWord.kana);
 
@@ -128,6 +136,9 @@ export const WordleGame: React.FC = () => {
     setRomajiBuffer('');
     setImgError(false);
     setShareFeedback(null);
+    clearRevealTimers();
+    // A restored finished game shows its colours without replaying the reveal
+    setRevealCount(game.guesses.length ? Array.from(game.word.kana).length : 0);
   }, []);
 
   // Switching length (or level) opens that combination's daily puzzle / saved game
@@ -189,6 +200,34 @@ export const WordleGame: React.FC = () => {
     }
   };
 
+  const clearRevealTimers = () => {
+    revealTimers.current.forEach(clearTimeout);
+    revealTimers.current = [];
+  };
+
+  useEffect(() => clearRevealTimers, []);
+
+  /**
+   * Turns the tiles face-up one at a time and runs `done` when the last one
+   * lands, so the win modal never covers the reveal. With reduced motion the
+   * colours appear at once and `done` runs immediately.
+   */
+  const runReveal = useCallback((length: number, done: () => void) => {
+    clearRevealTimers();
+    if (reducedMotion) {
+      setRevealCount(length);
+      done();
+      return;
+    }
+    setRevealCount(0);
+    for (let i = 1; i <= length; i++) {
+      revealTimers.current.push(
+        window.setTimeout(() => setRevealCount(i), i * REVEAL_STEP_MS)
+      );
+    }
+    revealTimers.current.push(window.setTimeout(done, length * REVEAL_STEP_MS + 120));
+  }, [reducedMotion]);
+
   const handleCharInput = useCallback((char: string) => {
     if (gameStatus !== 'playing') return;
 
@@ -206,18 +245,25 @@ export const WordleGame: React.FC = () => {
       // Clear the typed row so it shows the coloured result of this guess
       setCurrentInput([]);
 
-      if (isWordleWon(evaluation)) {
-        setGameStatus('won');
-        recordWordleWin();
-        playSuccessChime();
-        speakJapanese(currentWord.kana);
-        confetti({ particleCount: 70, spread: 60, origin: { y: 0.6 } });
-        setTimeout(() => setRevealedResultModal(true), 800);
-      } else if (newGuesses.length >= MAX_ATTEMPTS) {
-        setGameStatus('lost');
-        addXP(10);
-        setTimeout(() => setRevealedResultModal(true), 800);
-      }
+      const won = isWordleWon(evaluation);
+      const lost = !won && newGuesses.length >= MAX_ATTEMPTS;
+      // Block further typing straight away, but hold the celebration until the
+      // last tile has turned over.
+      if (won) setGameStatus('won');
+      else if (lost) setGameStatus('lost');
+
+      runReveal(guess.length, () => {
+        if (won) {
+          recordWordleWin();
+          playSuccessChime();
+          speakJapanese(currentWord.kana);
+          confetti({ particleCount: 70, spread: 60, origin: { y: 0.6 } });
+          setTimeout(() => setRevealedResultModal(true), 420);
+        } else if (lost) {
+          addXP(10);
+          setTimeout(() => setRevealedResultModal(true), 420);
+        }
+      });
       return;
     }
 
@@ -503,7 +549,8 @@ export const WordleGame: React.FC = () => {
               ? lastGuess![colIndex] || ''
               : currentInput[colIndex] || '';
 
-            const state: WordleTileState = showingLastEvaluation && lastEvaluation
+            const faceUp = showingLastEvaluation && colIndex < revealCount;
+            const state: WordleTileState = faceUp && lastEvaluation
               ? lastEvaluation[colIndex]
               : 'empty';
 
@@ -516,14 +563,19 @@ export const WordleGame: React.FC = () => {
               bgClass = 'bg-amber-500 border-amber-400 text-slate-950 font-bold shadow-md';
             } else if (state === 'absent') {
               bgClass = 'bg-slate-950 border-slate-800 text-slate-500';
-            } else if (char) {
+            } else if (char && !showingLastEvaluation) {
               bgClass = 'bg-slate-800 border-rose-400 text-white scale-105 shadow-sm';
             }
 
+            // Re-keying on the guess count restarts the animation for a new guess
+            const flipping = showingLastEvaluation && !reducedMotion;
+
             return (
               <div
-                key={colIndex}
-                className={`w-14 h-14 sm:w-20 sm:h-20 flex flex-col items-center justify-center rounded-xl sm:rounded-2xl border-2 transition-all duration-150 ${bgClass}`}
+                key={`${guesses.length}-${colIndex}`}
+                data-state={faceUp ? state : 'hidden'}
+                className={`w-14 h-14 sm:w-20 sm:h-20 flex flex-col items-center justify-center rounded-xl sm:rounded-2xl border-2 transition-colors duration-150 ${bgClass} ${flipping ? 'kq-tile-flip' : ''}`}
+                style={flipping ? { animationDelay: `${colIndex * REVEAL_STEP_MS}ms` } : undefined}
               >
                 {char ? (
                   <span className="text-2xl sm:text-4xl font-black font-['Kosugi_Maru']">
