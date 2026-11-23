@@ -57,6 +57,8 @@ const MainApp: React.FC = () => {
     const url = new URL(window.location.href);
     if (activeTab === null) url.searchParams.delete('tab');
     else url.searchParams.set('tab', activeTab);
+    // ?cat= belongs to the phrasebook only
+    if (activeTab !== 'survival') url.searchParams.delete('cat');
     if (url.href !== window.location.href) window.history.pushState(null, '', url);
   }, [activeTab]);
 
