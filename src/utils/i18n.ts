@@ -156,7 +156,10 @@ export const TRANSLATIONS = {
       tip: 'Tip',
       audio: 'Audio',
       copy: 'Copy',
-      copied: 'Copied'
+      copied: 'Copied',
+      allSituations: 'All situations',
+      phrases: 'phrases',
+      noResults: 'No phrases match'
     },
     achievements: {
       title: 'Achievements & Mastery',
@@ -333,7 +336,10 @@ export const TRANSLATIONS = {
       tip: 'コツ',
       audio: '音声',
       copy: 'コピー',
-      copied: 'コピー完了'
+      copied: 'コピー完了',
+      allSituations: 'すべての場面',
+      phrases: 'フレーズ',
+      noResults: '一致するフレーズはありません:'
     },
     achievements: {
       title: '実績・習得度',
