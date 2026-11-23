@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { SURVIVAL_CATEGORIES, SurvivalCategory } from '../data/survivalPhrases';
 import { NEPALI_SURVIVAL_MAP } from '../data/nepaliData';
 import { useGame } from '../context/GameContext';
@@ -75,6 +75,27 @@ export const SurvivalGuide: React.FC = () => {
   }, []);
 
   const activeCategory = catId ? SURVIVAL_CATEGORIES.find(c => c.id === catId) ?? null : null;
+
+  // In a list, the back bar stays pinned under the top bar. Once the big
+  // heading has scrolled under it, the bar shows the situation's name too.
+  const barRef = useRef<HTMLDivElement>(null);
+  const headRef = useRef<HTMLDivElement>(null);
+  const [compact, setCompact] = useState(false);
+  useEffect(() => {
+    if (!activeCategory) return;
+    const check = () => {
+      const bar = barRef.current?.getBoundingClientRect();
+      const head = headRef.current?.getBoundingClientRect();
+      if (bar && head) setCompact(head.bottom <= bar.bottom);
+    };
+    check();
+    window.addEventListener('scroll', check, { passive: true });
+    window.addEventListener('resize', check);
+    return () => {
+      window.removeEventListener('scroll', check);
+      window.removeEventListener('resize', check);
+    };
+  }, [activeCategory]);
 
   const openCategory = (id: string) => {
     const url = new URL(window.location.href);
@@ -223,17 +244,36 @@ export const SurvivalGuide: React.FC = () => {
     const look = LOOK[activeCategory.id] ?? DEFAULT_LOOK;
     const Icon = ICONS[activeCategory.icon] ?? Compass;
     return (
-      <div className="max-w-2xl mx-auto px-2 sm:px-4 py-2 sm:py-4" data-testid="survival-guide-view">
-        <button
-          onClick={closeCategory}
-          data-testid="phrase-back"
-          className="flex items-center gap-1 -ml-1 mb-3 px-1.5 py-1 rounded-lg text-xs font-semibold text-slate-400 hover:text-white transition-colors"
+      <div className="max-w-2xl mx-auto px-2 sm:px-4 pb-2 sm:pb-4" data-testid="survival-guide-view">
+        <div
+          ref={barRef}
+          data-testid="phrase-back-bar"
+          style={{ top: 'var(--kq-nav-h, 57px)' }}
+          className={`sticky z-30 -mx-2 sm:-mx-4 px-2 sm:px-4 py-2 mb-2 bg-slate-950/90 backdrop-blur-md border-b transition-colors duration-200 motion-reduce:transition-none ${
+            compact ? 'border-slate-800/80' : 'border-transparent'
+          }`}
         >
-          <ChevronLeft className="w-4 h-4" />
-          {t.survival.allSituations}
-        </button>
+          <div className="flex items-center gap-3 min-w-0">
+            <button
+              onClick={closeCategory}
+              data-testid="phrase-back"
+              className="flex items-center gap-1 h-9 pl-1.5 pr-3 rounded-full border border-slate-800 bg-slate-900/80 text-xs font-semibold text-slate-300 hover:text-white hover:border-slate-700 shrink-0 transition-colors"
+            >
+              <ChevronLeft className="w-4 h-4" />
+              {t.survival.allSituations}
+            </button>
+            <span
+              aria-hidden={!compact}
+              className={`text-sm font-bold text-white truncate transition-opacity duration-200 motion-reduce:transition-none ${
+                compact ? 'opacity-100' : 'opacity-0'
+              }`}
+            >
+              {ja ? activeCategory.titleJa : activeCategory.title}
+            </span>
+          </div>
+        </div>
 
-        <div className="flex items-start gap-3 pb-4 border-b border-slate-800/80 mb-4 sm:mb-5">
+        <div ref={headRef} className="flex items-start gap-3 pb-4 border-b border-slate-800/80 mb-4 sm:mb-5">
           <span className={`w-11 h-11 rounded-xl ${look.tint} flex items-center justify-center shrink-0`}>
             <Icon className={`w-5 h-5 ${look.text}`} />
           </span>

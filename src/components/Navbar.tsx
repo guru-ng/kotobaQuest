@@ -76,6 +76,20 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, onGoHome, onOpenAchie
     { id: 'survival', label: t.modes.survival, icon: <Compass className="w-3.5 h-3.5 text-purple-400" /> }
   ];
 
+  // Publish the bar's height so things pinned below it (e.g. the phrasebook's
+  // back bar) sit exactly under it at every screen size.
+  useEffect(() => {
+    const el = navRef.current;
+    if (!el) return;
+    const publish = () =>
+      document.documentElement.style.setProperty('--kq-nav-h', `${el.offsetHeight}px`);
+    publish();
+    if (typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver(publish);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
   const activeMode = navLinks.find(l => l.id === activeTab);
 
   return (
