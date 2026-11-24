@@ -49,6 +49,10 @@ for (const lv of LEVELS) {
   vBad.length ? fail(`vocab-${lv}: ${vBad.length} incomplete, e.g. ${JSON.stringify(vBad[0])}`)
               : ok(`vocab-${lv}: all ${vocab.length} complete`);
   vDupe && fail(`vocab-${lv}: ${vDupe} duplicate ids`);
+  const TYPES = ['noun', 'verb', 'i-adj', 'na-adj', 'adverb', 'phrase'];
+  const vUntyped = vocab.filter((v: any) => !TYPES.includes(v.wordType));
+  vUntyped.length ? fail(`vocab-${lv}: ${vUntyped.length} without a word type, e.g. ${vUntyped[0].kanji}`)
+                  : ok(`vocab-${lv}: every word has a word type`);
 
   // --- kanji ---
   const kanji = read(`kanji-${lv}.json`);

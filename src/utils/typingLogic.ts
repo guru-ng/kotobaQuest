@@ -140,6 +140,11 @@ export function flushRomajiInput(pending: string): string[] {
  * Checks if the user's typed input matches the target word in progress.
  * Supports direct kana input or romaji input.
  */
+/** シック → しっく (ー and other characters are kept). */
+export function katakanaToHiragana(text: string): string {
+  return text.replace(/[\u30a1-\u30f6]/g, ch => String.fromCharCode(ch.charCodeAt(0) - 0x60));
+}
+
 export function checkTypingProgress(
   userInput: string,
   targetKana: string,
@@ -147,6 +152,9 @@ export function checkTypingProgress(
 ): { isComplete: boolean; isPartialMatch: boolean; convertedInput: string } {
   const cleanInput = userInput.trim().toLowerCase();
   const converted = romajiToHiragana(cleanInput);
+  // Loanwords are written in katakana; compare them as hiragana so any romaji
+  // spelling works (sikku and shikku both give シック)
+  targetKana = katakanaToHiragana(targetKana);
 
   // Exact complete match either via converted kana, raw kana, or raw romaji
   const isComplete =

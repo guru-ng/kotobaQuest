@@ -13,6 +13,7 @@ npx tsx scripts/validate-content.ts
 | Source | Used for | Licence |
 |---|---|---|
 | [KANJIDIC2](https://www.edrdg.org/wiki/index.php/KANJIDIC_Project) — Electronic Dictionary Research and Development Group, © James William Breen | Kanji meanings, readings, stroke counts | [CC BY-SA 4.0](https://www.edrdg.org/edrdg/licence.html) |
+| [JMdict](https://www.edrdg.org/wiki/index.php/JMdict-EDICT_Dictionary_Project) — Electronic Dictionary Research and Development Group, © James William Breen | Word types (noun, verb, adjective, …) for the Flashcards and Typing Dojo decks | [CC BY-SA 4.0](https://www.edrdg.org/edrdg/licence.html) |
 | [KanjiVG](https://kanjivg.tagaini.net) — © Ulrich Apel | Stroke-order paths for the writing board | [CC BY-SA 3.0](https://creativecommons.org/licenses/by-sa/3.0/) |
 | [JLPT resources](https://www.tanos.co.uk/jlpt/) — Jonathan Waller | JLPT N5–N1 vocabulary and kanji levels | [CC BY](https://creativecommons.org/licenses/by/4.0/) |
 | [Unsplash](https://unsplash.com) | Photographs used as Wordle picture clues | [Unsplash License](https://unsplash.com/license) |
@@ -21,7 +22,9 @@ Intermediate repositories used to fetch the above (their own code is MIT; the
 data keeps the licences in the table):
 [davidluzgouveia/kanji-data](https://github.com/davidluzgouveia/kanji-data),
 [jamsinclair/open-anki-jlpt-decks](https://github.com/jamsinclair/open-anki-jlpt-decks),
-[KanjiVG/kanjivg](https://github.com/KanjiVG/kanjivg).
+[KanjiVG/kanjivg](https://github.com/KanjiVG/kanjivg),
+[jamdict-data](https://pypi.org/project/jamdict-data/) (JMdict as SQLite; read by
+`scripts/build-wordtypes.ts`, whose output is `scripts/data/word-types.json`).
 
 ## What this means
 

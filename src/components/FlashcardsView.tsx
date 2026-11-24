@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { NEPALI_VOCAB_MAP } from '../data/nepaliData';
 import { VocabWord } from '../types';
 import { useGame } from '../context/GameContext';
@@ -7,6 +7,7 @@ import { getTranslation } from '../utils/i18n';
 import {
   FlashcardRating,
   buildReviewQueue,
+  isDue,
   calculateNextSRS,
   formatInterval,
   nextReviewDateKey
@@ -14,19 +15,29 @@ import {
 import { addDaysToKey, localDateKey } from '../utils/dateUtils';
 import { playCardFlipSound, playSuccessChime, speakJapanese } from '../utils/audio';
 import confetti from 'canvas-confetti';
-import { 
-  Volume2, 
-  RotateCw, 
-  Check, 
-  RotateCcw
+import { useSubview } from '../utils/subview';
+import { WORD_TYPES, isWordType, wordTypeOf } from '../data/wordTypes';
+import { ACCENTS, ChoiceTile, PinnedBackBar } from './ChoiceGrid';
+import {
+  Volume2,
+  RotateCw,
+  Check,
+  RotateCcw,
+  Layers
 } from 'lucide-react';
+
+/** The deck that holds every word; the others hold one word type each. */
+const REVIEW_DECK = 'review';
 
 export const FlashcardsView: React.FC = () => {
   const { settings, srsItems, recordCardReviewed, currentJLPT, uiLanguage, toggleNepali } = useGame();
   const t = getTranslation(uiLanguage);
   const { pack, ready } = useContentPack(currentJLPT);
 
-  const [categoryFilter, setCategoryFilter] = useState<string>('all');
+  // The open deck lives in ?deck= so Back returns to the deck grid
+  const { value: deckParam, open: openDeckView, close: closeDeck } = useSubview('deck');
+  const deckId = deckParam === REVIEW_DECK || isWordType(deckParam) ? deckParam : null;
+  const headRef = useRef<HTMLDivElement>(null);
   const [deck, setDeck] = useState<VocabWord[]>([]);
   const [currentIndex, setCurrentIndex] = useState<number>(0);
   const [isFlipped, setIsFlipped] = useState<boolean>(false);
@@ -37,19 +48,17 @@ export const FlashcardsView: React.FC = () => {
   const [sessionKey, setSessionKey] = useState<number>(0);
   const [queueCounts, setQueueCounts] = useState<{ due: number; fresh: number }>({ due: 0, fresh: 0 });
   const [nextDueKey, setNextDueKey] = useState<string | null>(null);
+  // Which deck the current session was built for, so a deck that is still
+  // being built doesn't flash "All caught up"
+  const [builtFor, setBuiltFor] = useState<string | null>(null);
 
   // Build the session once per filter/level/session change. srsItems is read
   // here on purpose but not a dependency: rating a card must not reshuffle
   // the session that is in progress.
   useEffect(() => {
-    if (!ready) return;
-    let filtered = pack.vocab;
-    if (categoryFilter !== 'all') {
-      const byCat = filtered.filter(w => w.category === categoryFilter);
-      if (byCat.length > 0) {
-        filtered = byCat;
-      }
-    }
+    if (!ready || !deckId) return;
+    const filtered =
+      deckId === REVIEW_DECK ? pack.vocab : pack.vocab.filter(w => wordTypeOf(w) === deckId);
 
     if (practiceMode) {
       setDeck(filtered);
@@ -63,7 +72,8 @@ export const FlashcardsView: React.FC = () => {
     setCurrentIndex(0);
     setIsFlipped(false);
     setIsCompleted(false);
-  }, [categoryFilter, currentJLPT, practiceMode, sessionKey, ready, pack]);
+    setBuiltFor(deckId);
+  }, [deckId, currentJLPT, practiceMode, sessionKey, ready, pack]);
 
   const currentWord: VocabWord | undefined = deck[currentIndex];
   const srsData = currentWord ? srsItems[currentWord.id] : undefined;
@@ -113,6 +123,34 @@ export const FlashcardsView: React.FC = () => {
     setCardsReviewedThisSession(0);
   };
 
+  const openDeck = (id: string) => {
+    setPracticeMode(false);
+    setCardsReviewedThisSession(0);
+    setDeck([]);
+    openDeckView(id);
+  };
+
+  // Words, due cards and new cards per deck, for the deck grid
+  const deckStats = useMemo(() => {
+    const stats: Record<string, { total: number; due: number; fresh: number }> = {};
+    const add = (id: string, total: number, due: number, fresh: number) => {
+      const s = (stats[id] ??= { total: 0, due: 0, fresh: 0 });
+      s.total += total;
+      s.due += due;
+      s.fresh += fresh;
+    };
+    if (!ready) return stats;
+    const now = new Date();
+    for (const w of pack.vocab) {
+      const item = srsItems[w.id];
+      const due = isDue(item, now) ? 1 : 0;
+      const fresh = item ? 0 : 1;
+      add(REVIEW_DECK, 1, due, fresh);
+      add(wordTypeOf(w), 1, due, fresh);
+    }
+    return stats;
+  }, [ready, pack, srsItems]);
+
   const exitPractice = () => {
     setPracticeMode(false);
     setCardsReviewedThisSession(0);
@@ -136,35 +174,109 @@ export const FlashcardsView: React.FC = () => {
     return formatInterval(next.intervalDays, uiLanguage);
   };
 
-  const isCaughtUp = !isCompleted && deck.length === 0;
+  const building = builtFor !== deckId;
+  const isCaughtUp = !building && !isCompleted && deck.length === 0;
 
-  const categories = [
-    { id: 'all', label: t.categories.all },
-    { id: 'food', label: t.categories.food },
-    { id: 'travel', label: t.categories.travel },
-    { id: 'daily', label: t.categories.daily },
-    { id: 'verbs', label: t.categories.verbs },
-    { id: 'adjectives', label: t.categories.adjectives }
-  ];
+  const deckName = (id: string) =>
+    id === REVIEW_DECK ? t.flashcards.todaysReview : t.wordTypes[id as keyof typeof t.wordTypes];
 
-  return (
-    <div className="max-w-2xl mx-auto px-2 sm:px-4 py-2 sm:py-4" data-testid="flashcards-view">
-      
-      {/* Editorial Header */}
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 sm:gap-4 pb-3 sm:pb-4 border-b border-slate-800/80 mb-4 sm:mb-6">
-        <div className="flex items-baseline justify-between sm:block">
-          <div className="flex items-center gap-2">
-            <h2 className="text-lg sm:text-2xl font-bold text-white tracking-tight">
-              {t.flashcards.title}
-            </h2>
-            {uiLanguage === 'ja' && (
-              <span className="text-sm font-['Kosugi_Maru'] text-rose-400">
-                単語カード
-              </span>
-            )}
+  // ------------------------------------------------------------ deck grid
+  if (!deckId) {
+    const all = deckStats[REVIEW_DECK];
+    return (
+      <div className="max-w-2xl mx-auto px-2 sm:px-4 py-2 sm:py-4" data-testid="flashcards-view">
+        <div className="flex items-start justify-between gap-3 pb-3 sm:pb-4 border-b border-slate-800/80 mb-4 sm:mb-5">
+          <div>
+            <div className="flex items-center gap-2">
+              <h2 className="text-lg sm:text-2xl font-bold text-white tracking-tight">{t.flashcards.title}</h2>
+            </div>
+            <p className="text-xs text-slate-400 mt-0.5 sm:mt-1">
+              {t.flashcards.subtitle} · JLPT {currentJLPT}
+            </p>
           </div>
-          <div className="flex items-center gap-1.5 text-xs text-slate-400 sm:mt-1">
-            <span className="hidden sm:inline">{t.flashcards.subtitle} ·</span>
+          <button
+            onClick={toggleNepali}
+            className={`px-2.5 py-1 rounded-lg border text-xs font-bold transition-colors shrink-0 ${
+              settings.showNepali
+                ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30'
+                : 'bg-slate-900 text-slate-400 border-slate-800 hover:bg-slate-800'
+            }`}
+            title="Toggle Nepali Meaning & Examples"
+          >
+            नेपाली: {settings.showNepali ? 'ON' : 'OFF'}
+          </button>
+        </div>
+
+        {!ready ? (
+          <div className="bg-slate-900/40 border border-slate-800/80 rounded-2xl p-8 text-center text-sm text-slate-400">
+            {t.flashcards.loading}
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3" data-testid="flashcard-decks">
+            <ChoiceTile
+              title={t.flashcards.todaysReview}
+              meta={
+                all && (all.due || all.fresh)
+                  ? `${all.due} ${t.flashcards.dueLabel} · ${all.fresh} ${t.flashcards.newLabel}`
+                  : t.flashcards.allCaughtUpShort
+              }
+              glyph="今"
+              icon={Layers}
+              accent={ACCENTS.indigo}
+              index={0}
+              onClick={() => openDeck(REVIEW_DECK)}
+              testId={`deck-${REVIEW_DECK}`}
+              wideClass="col-span-2 sm:col-span-3"
+            />
+            {WORD_TYPES.filter(w => deckStats[w.id]?.total).map((w, i) => {
+              const st = deckStats[w.id];
+              return (
+                <ChoiceTile
+                  key={w.id}
+                  title={deckName(w.id)}
+                  meta={`${st.total.toLocaleString()} ${t.flashcards.words}`}
+                  glyph={w.glyph}
+                  iconText={w.glyph}
+                  accent={w.accent}
+                  index={i + 1}
+                  onClick={() => openDeck(w.id)}
+                  testId={`deck-${w.id}`}
+                  badge={
+                    st.due > 0 ? (
+                      <span className="px-1.5 py-0.5 rounded-md bg-rose-500/15 text-rose-400 text-[11px] font-bold">
+                        {st.due} {t.flashcards.dueLabel}
+                      </span>
+                    ) : undefined
+                  }
+                />
+              );
+            })}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // ------------------------------------------------------------ deck session
+  return (
+    <div className="max-w-2xl mx-auto px-2 sm:px-4 pb-2 sm:pb-4" data-testid="flashcards-view">
+      <PinnedBackBar
+        label={t.flashcards.allDecks}
+        title={deckName(deckId)}
+        onBack={closeDeck}
+        headRef={headRef}
+        testId="deck-back"
+      />
+
+      <div
+        ref={headRef}
+        className="flex items-start justify-between gap-3 pb-3 sm:pb-4 border-b border-slate-800/80 mb-4 sm:mb-6"
+      >
+        <div className="min-w-0">
+          <h2 className="text-lg sm:text-2xl font-bold text-white tracking-tight" data-testid="deck-title">
+            {deckName(deckId)}
+          </h2>
+          <div className="flex items-center gap-1.5 text-xs text-slate-400 mt-0.5 sm:mt-1">
             <span>JLPT {currentJLPT}</span>
             <span aria-hidden="true">·</span>
             {practiceMode ? (
@@ -177,46 +289,27 @@ export const FlashcardsView: React.FC = () => {
           </div>
         </div>
 
-        {/* Unboxed Counter + Nepali Toggle */}
-        <div className="flex items-center justify-between sm:justify-end gap-3">
-          <button
-            onClick={toggleNepali}
-            className={`px-2.5 py-1 rounded-lg border text-xs font-bold transition-colors ${
-              settings.showNepali
-                ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30'
-                : 'bg-slate-900 text-slate-400 border-slate-800 hover:bg-slate-800'
-            }`}
-            title="Toggle Nepali Meaning & Examples"
-          >
-            नेपाली: {settings.showNepali ? 'ON' : 'OFF'}
-          </button>
-
+        <div className="flex flex-col items-end gap-1.5">
+            <button
+              onClick={toggleNepali}
+              className={`px-2.5 py-1 rounded-lg border text-xs font-bold transition-colors shrink-0 ${
+                settings.showNepali
+                  ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30'
+                  : 'bg-slate-900 text-slate-400 border-slate-800 hover:bg-slate-800'
+              }`}
+              title="Toggle Nepali Meaning & Examples"
+            >
+              नेपाली: {settings.showNepali ? 'ON' : 'OFF'}
+            </button>
           {!isCompleted && deck.length > 0 && (
-            <div className="text-xs text-slate-400 font-medium">
+            <div className="text-xs text-slate-400 font-medium whitespace-nowrap">
               {t.flashcards.cardOf} <strong className="text-white">{currentIndex + 1}</strong> {t.flashcards.of} {deck.length}
             </div>
           )}
         </div>
       </div>
 
-      {/* Clean Category Filter Tabs */}
-      <div className="flex items-center gap-1 overflow-x-auto pb-1 mb-4 sm:mb-6 scrollbar-none">
-        {categories.map(cat => (
-          <button
-            key={cat.id}
-            onClick={() => setCategoryFilter(cat.id)}
-            className={`px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors ${
-              categoryFilter === cat.id
-                ? 'bg-slate-800 text-white font-bold border border-slate-700/80'
-                : 'text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            {cat.label}
-          </button>
-        ))}
-      </div>
-
-      {!ready && deck.length === 0 && (
+      {building && (
         <div className="bg-slate-900/40 border border-slate-800/80 rounded-2xl p-8 text-center my-6 text-sm text-slate-400">
           {t.flashcards.loading}
         </div>
@@ -231,7 +324,7 @@ export const FlashcardsView: React.FC = () => {
         </div>
       )}
 
-      {!ready && deck.length === 0 ? null : isCaughtUp ? (
+      {building ? null : isCaughtUp ? (
         /* Nothing due: all caught up */
         <div className="bg-slate-900/40 border border-slate-800/80 rounded-2xl p-8 text-center my-6">
           <h3 className="text-xl font-bold text-white mb-2">{t.flashcards.caughtUp}</h3>
@@ -258,7 +351,7 @@ export const FlashcardsView: React.FC = () => {
             {/* Unboxed Top Metadata */}
             <div className="flex items-center justify-between text-xs text-slate-400">
               <div className="flex items-center gap-2">
-                <span className="capitalize">{currentWord.category}</span>
+                <span>{t.wordTypes[wordTypeOf(currentWord)]}</span>
                 <span aria-hidden="true">·</span>
                 <span>JLPT {currentWord.jlpt}</span>
               </div>
@@ -452,13 +545,10 @@ export const FlashcardsView: React.FC = () => {
               <span>{t.flashcards.reviewAgain}</span>
             </button>
             <button
-              onClick={() => {
-                setCategoryFilter('all');
-                restartDeck();
-              }}
+              onClick={closeDeck}
               className="px-5 py-2.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold text-xs border border-slate-700"
             >
-              {t.flashcards.allCategories}
+              {t.flashcards.allDecks}
             </button>
           </div>
         </div>

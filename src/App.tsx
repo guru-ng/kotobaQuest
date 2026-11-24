@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { GameProvider, useGame } from './context/GameContext';
 import { Navbar } from './components/Navbar';
+import { SUBVIEW_PARAM } from './utils/subview';
 import { WordleGame } from './components/WordleGame';
 import { TypingDojo } from './components/TypingDojo';
 import { KanjiForge } from './components/KanjiForge';
@@ -57,8 +58,10 @@ const MainApp: React.FC = () => {
     const url = new URL(window.location.href);
     if (activeTab === null) url.searchParams.delete('tab');
     else url.searchParams.set('tab', activeTab);
-    // ?cat= belongs to the phrasebook only
-    if (activeTab !== 'survival') url.searchParams.delete('cat');
+    // Each game's own parameter (?cat=, ?deck=, ...) only belongs to that game
+    for (const [mode, param] of Object.entries(SUBVIEW_PARAM)) {
+      if (mode !== activeTab) url.searchParams.delete(param);
+    }
     if (url.href !== window.location.href) window.history.pushState(null, '', url);
   }, [activeTab]);
 

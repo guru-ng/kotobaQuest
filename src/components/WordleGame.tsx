@@ -22,7 +22,11 @@ import { useGame } from '../context/GameContext';
 import { useContentPack } from '../data/contentPack';
 import { useReducedMotion } from '../utils/useReducedMotion';
 import { playSuccessChime, playCardFlipSound, speakJapanese } from '../utils/audio';
-import { 
+import { useSubview } from '../utils/subview';
+import { ACCENTS, ChoiceTile, PinnedBackBar } from './ChoiceGrid';
+import {
+  CalendarDays,
+  Shuffle,
   RotateCcw, 
   Volume2, 
   CheckCircle2, 
@@ -82,6 +86,41 @@ function resolveGame(words: WordleWord[], level: JLPTLevel, length: 3 | 4, force
   return { date, slot, length, mode: 'daily', word: dailyWord, guesses: [], status: 'playing' };
 }
 
+/** A fresh random practice word for a level + length (never today's daily). */
+function newPracticeGame(words: WordleWord[], level: JLPTLevel, length: 3 | 4, avoidId?: string): ResolvedGame {
+  const date = localDateKey();
+  const slot = wordleSlotKey(level, length);
+  const pool = getWordlePool(words, level, length);
+  const daily = pickDailyWord(pool, date, slot);
+  const avoid = [...(avoidId ? [avoidId] : []), ...(daily ? [daily.id] : [])];
+  const word = pickPracticeWord(pool, avoid) ?? daily ?? words[0];
+  return { date, slot, length, mode: 'practice', word, guesses: [], status: 'playing' };
+}
+
+/** The practice game for a level + length: resume one in progress, else a new word. */
+function resolvePractice(words: WordleWord[], level: JLPTLevel, length: 3 | 4): ResolvedGame {
+  const date = localDateKey();
+  const slot = wordleSlotKey(level, length);
+  const saved = loadWordleSlot(date, slot)?.practice;
+  const word = saved && getWordlePool(words, level, length).find(w => w.id === saved.wordId);
+  if (saved && word && saved.status === 'playing') {
+    const guesses = saved.guesses
+      .filter(row => row.length === Array.from(word.kana).length)
+      .slice(0, MAX_ATTEMPTS);
+    return { date, slot, length, mode: 'practice', word, guesses, status: 'playing' };
+  }
+  return newPracticeGame(words, level, length);
+}
+
+/** The four puzzle cards: today's daily and a practice game, for 3 and 4 kana. */
+type PlayId = 'daily-3' | 'daily-4' | 'practice-3' | 'practice-4';
+const PLAYS: Array<{ id: PlayId; mode: WordleMode; length: 3 | 4 }> = [
+  { id: 'daily-3', mode: 'daily', length: 3 },
+  { id: 'daily-4', mode: 'daily', length: 4 },
+  { id: 'practice-3', mode: 'practice', length: 3 },
+  { id: 'practice-4', mode: 'practice', length: 4 }
+];
+
 const KANA_VOWEL_ROWS = [
   { label: 'A', chars: ['あ', 'か', 'さ', 'た', 'な', 'は', 'ま', 'や', 'ら', 'わ'] },
   { label: 'I', chars: ['い', 'き', 'し', 'ち', 'に', 'ひ', 'み', 'り'] },
@@ -97,6 +136,11 @@ export const WordleGame: React.FC = () => {
   // subset first would change today's puzzle once the rest arrived.
   const { pack, ready } = useContentPack(currentJLPT);
   const words = pack.wordle;
+
+  // The chosen puzzle lives in ?play= so Back returns to the puzzle cards
+  const { value: playParam, open: openPlay, replace: switchPlay, close: closePlay } = useSubview('play');
+  const play = PLAYS.find(p => p.id === playParam) ?? null;
+  const headRef = useRef<HTMLDivElement>(null);
 
   const [initialGame] = useState<ResolvedGame>(() => resolveGame(words, currentJLPT, 3));
   const [targetLength, setTargetLength] = useState<3 | 4>(initialGame.length);
@@ -141,32 +185,30 @@ export const WordleGame: React.FC = () => {
     setRevealCount(game.guesses.length ? Array.from(game.word.kana).length : 0);
   }, []);
 
-  // Switching length (or level) opens that combination's daily puzzle / saved game
-  const selectLength = (length: 3 | 4) => applyGame(resolveGame(words, currentJLPT, length));
-
-  const backToDaily = () => applyGame(resolveGame(words, currentJLPT, targetLength, true));
+  const backToDaily = () => switchPlay(`daily-${targetLength}`);
 
   // "New puzzle" / "Next word": a random practice word (not today's daily)
   const startNewGame = () => {
-    const date = localDateKey();
-    const practiceSlot = wordleSlotKey(currentJLPT, targetLength);
-    const pool = getWordlePool(words, currentJLPT, targetLength);
-    const daily = pickDailyWord(pool, date, practiceSlot);
-    const avoid = [currentWord.id, ...(daily ? [daily.id] : [])];
-    const word = pickPracticeWord(pool, avoid) ?? currentWord;
-    applyGame({ date, slot: practiceSlot, length: targetLength, mode: 'practice', word, guesses: [], status: 'playing' });
+    if (mode === 'daily') {
+      switchPlay(`practice-${targetLength}`);
+      return;
+    }
+    applyGame(newPracticeGame(words, currentJLPT, targetLength, currentWord.id));
   };
 
-  // Load the right puzzle once the level's full word list is in (also on mount)
+  // Load the chosen puzzle once the level's full word list is in
   useEffect(() => {
-    if (!ready) return;
-    applyGame(resolveGame(words, currentJLPT, targetLength));
-    // targetLength intentionally omitted: length changes go through selectLength
-  }, [currentJLPT, ready, words]);
+    if (!ready || !play) return;
+    applyGame(
+      play.mode === 'daily'
+        ? resolveGame(words, currentJLPT, play.length, true)
+        : resolvePractice(words, currentJLPT, play.length)
+    );
+  }, [currentJLPT, ready, words, play?.id]);
 
   // Persist progress so a reload doesn't wipe (or replay) today's puzzle
   useEffect(() => {
-    if (!ready) return;
+    if (!ready || !play || play.mode !== mode || play.length !== targetLength) return;
     const entry = { wordId: currentWord.id, guesses, status: gameStatus };
     const existing = loadWordleSlot(gameDate, slot) ?? { mode };
     saveWordleSlot(
@@ -174,7 +216,7 @@ export const WordleGame: React.FC = () => {
       slot,
       mode === 'daily' ? { ...existing, mode, daily: entry } : { ...existing, mode, practice: entry }
     );
-  }, [ready, gameDate, slot, mode, currentWord.id, guesses, gameStatus]);
+  }, [ready, play, gameDate, slot, mode, targetLength, currentWord.id, guesses, gameStatus]);
 
   const handleShare = async () => {
     const text = buildWordleShareText({
@@ -303,6 +345,8 @@ export const WordleGame: React.FC = () => {
   const pendingGuessLength = currentInput.length + flushRomajiInput(romajiBuffer).length;
 
   useEffect(() => {
+    // The puzzle cards are showing: typing there must not fill a hidden board
+    if (!play) return;
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
 
@@ -326,7 +370,7 @@ export const WordleGame: React.FC = () => {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [handleCharInput, handleRomajiKey]);
+  }, [handleCharInput, handleRomajiKey, play]);
 
   const keyboardStatus = computeKeyboardStatus(guesses, targetChars);
 
@@ -342,11 +386,134 @@ export const WordleGame: React.FC = () => {
 
   const nepaliData = NEPALI_WORDLE_MAP[currentWord.id];
 
+  const playName = (p: { mode: WordleMode; length: number }) =>
+    `${p.mode === 'daily' ? `${t.wordle.daily} #${wordlePuzzleNumber(localDateKey())}` : t.wordle.practice} · ${p.length} ${t.wordle.kanaLength}`;
+
+  // ---------------------------------------------------------- puzzle cards
+  if (!play) {
+    const today = localDateKey();
+    const LOOKS = {
+      'daily-3': { glyph: '今', icon: CalendarDays, accent: ACCENTS.rose },
+      'daily-4': { glyph: '日', icon: CalendarDays, accent: ACCENTS.orange },
+      'practice-3': { glyph: '練', icon: Shuffle, accent: ACCENTS.sky },
+      'practice-4': { glyph: '習', icon: Shuffle, accent: ACCENTS.indigo }
+    } as const;
+    const pill = (text: string, cls: string) => (
+      <span className={`px-1.5 py-0.5 rounded-md text-[11px] font-bold ${cls}`}>{text}</span>
+    );
+    return (
+      <div className="max-w-2xl mx-auto px-2 sm:px-4 py-2 sm:py-4" data-testid="wordle-view">
+        <div className="flex items-start justify-between gap-3 pb-3 sm:pb-4 border-b border-slate-800/80 mb-4 sm:mb-5">
+          <div>
+            <h2 className="text-lg sm:text-2xl font-bold text-white tracking-tight">{t.wordle.title}</h2>
+            <p className="text-xs text-slate-400 mt-0.5 sm:mt-1">
+              {t.wordle.subtitle} · JLPT {currentJLPT}
+            </p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3" data-testid="wordle-puzzles">
+          {PLAYS.map((p, i) => {
+            let meta: string;
+            let badge: React.ReactNode;
+            if (!ready) {
+              meta = '…';
+            } else if (p.mode === 'daily') {
+              const g = resolveGame(words, currentJLPT, p.length, true);
+              if (g.status === 'won') {
+                meta = `${t.wordle.solvedIn} ${g.guesses.length}/${MAX_ATTEMPTS}`;
+                badge = pill(t.wordle.solved, 'bg-emerald-500/15 text-emerald-400');
+              } else if (g.status === 'lost') {
+                meta = t.wordle.missed;
+                badge = pill(t.wordle.missed, 'bg-slate-500/15 text-slate-400');
+              } else if (g.guesses.length) {
+                meta = `${g.guesses.length}/${MAX_ATTEMPTS} · ${t.wordle.inProgress}`;
+              } else {
+                meta = t.wordle.notPlayed;
+                badge = pill(t.wordle.newBadge, 'bg-rose-500/15 text-rose-400');
+              }
+            } else {
+              const saved = loadWordleSlot(today, wordleSlotKey(currentJLPT, p.length))?.practice;
+              meta =
+                saved?.status === 'playing' && saved.guesses.length
+                  ? `${saved.guesses.length}/${MAX_ATTEMPTS} · ${t.wordle.inProgress}`
+                  : t.wordle.randomWord;
+            }
+            const look = LOOKS[p.id];
+            return (
+              <ChoiceTile
+                key={p.id}
+                title={playName(p)}
+                meta={meta}
+                glyph={look.glyph}
+                icon={look.icon}
+                accent={look.accent}
+                index={i}
+                onClick={() => openPlay(p.id)}
+                testId={`wordle-play-${p.id}`}
+                badge={badge}
+              />
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
+
+  // Board controls ride in the pinned bar so they stay in reach and the
+  // keyboard keeps its place on short phones
+  const boardControls = (
+    <div className="flex items-center gap-1.5 shrink-0">
+      <button
+        onClick={toggleNepali}
+        className={`px-2.5 py-1.5 rounded-lg border text-xs font-bold flex items-center gap-1 transition-colors ${
+          settings.showNepali
+            ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30'
+            : 'bg-slate-900 text-slate-400 border-slate-800 hover:bg-slate-800'
+        }`}
+        title="Toggle Nepali Meaning & Examples (नेपाली उदाहरण)"
+      >
+        <span>नेपाली</span>
+      </button>
+
+      <button
+        onClick={() => setShowHint(prev => !prev)}
+        className={`px-2.5 py-1.5 rounded-lg border text-xs font-medium flex items-center gap-1 transition-colors ${
+          showHint 
+            ? 'bg-amber-500/10 text-amber-300 border-amber-500/30' 
+            : 'bg-slate-900 text-slate-300 border-slate-800 hover:bg-slate-800'
+        }`}
+        title="Toggle First-Kana Hint"
+      >
+        <Lightbulb className="w-3.5 h-3.5 text-amber-400" />
+        <span>{t.wordle.hint}</span>
+      </button>
+
+      <button
+        onClick={startNewGame}
+        className="p-1.5 rounded-lg bg-slate-900 text-slate-400 hover:text-white border border-slate-800 hover:bg-slate-800 transition-colors"
+        title={t.wordle.newPuzzle}
+        aria-label={t.wordle.newPuzzle}
+      >
+        <RotateCcw className="w-4 h-4" />
+      </button>
+    </div>
+  );
+
+  // ------------------------------------------------------------- the board
   return (
-    <div className="max-w-2xl mx-auto px-2 sm:px-4 py-2 sm:py-3" data-testid="wordle-view">
-      
+    <div className="max-w-2xl mx-auto px-2 sm:px-4 pb-2 sm:pb-3" data-testid="wordle-view">
+      <PinnedBackBar
+        label={t.wordle.allPuzzles}
+        title={playName({ mode, length: targetLength })}
+        onBack={closePlay}
+        headRef={headRef}
+        testId="wordle-back"
+        right={boardControls}
+      />
+
       {/* Editorial Header Section — Compact & Aligned on Mobile */}
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 sm:gap-4 pb-3 border-b border-slate-800/80 mb-3 sm:mb-5">
+      <div ref={headRef} className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 sm:gap-4 pb-3 border-b border-slate-800/80 mb-3 sm:mb-5">
         <div className="flex items-baseline justify-between sm:block">
           <h2 className="text-lg sm:text-2xl font-bold text-white tracking-tight">
             {t.wordle.title}
@@ -374,63 +541,7 @@ export const WordleGame: React.FC = () => {
           </div>
         </div>
 
-        {/* Clean Controls Strip — Full-width balanced bar on mobile */}
-        <div className="flex items-center justify-between sm:justify-end gap-1.5 sm:gap-2">
-          <div className="flex bg-slate-900 border border-slate-800 rounded-lg p-0.5 text-xs font-semibold">
-            <button
-              onClick={() => selectLength(3)}
-              className={`px-2.5 py-1 rounded transition-colors ${
-                targetLength === 3 ? 'bg-slate-800 text-white shadow-sm' : 'text-slate-400 hover:text-slate-200'
-              }`}
-            >
-              3 {t.wordle.kanaLength}
-            </button>
-            <button
-              onClick={() => selectLength(4)}
-              className={`px-2.5 py-1 rounded transition-colors ${
-                targetLength === 4 ? 'bg-slate-800 text-white shadow-sm' : 'text-slate-400 hover:text-slate-200'
-              }`}
-            >
-              4 {t.wordle.kanaLength}
-            </button>
-          </div>
 
-          <div className="flex items-center gap-1.5">
-            <button
-              onClick={toggleNepali}
-              className={`px-2.5 py-1.5 rounded-lg border text-xs font-bold flex items-center gap-1 transition-colors ${
-                settings.showNepali
-                  ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30'
-                  : 'bg-slate-900 text-slate-400 border-slate-800 hover:bg-slate-800'
-              }`}
-              title="Toggle Nepali Meaning & Examples (नेपाली उदाहरण)"
-            >
-              <span>नेपाली</span>
-            </button>
-
-            <button
-              onClick={() => setShowHint(prev => !prev)}
-              className={`px-2.5 py-1.5 rounded-lg border text-xs font-medium flex items-center gap-1 transition-colors ${
-                showHint 
-                  ? 'bg-amber-500/10 text-amber-300 border-amber-500/30' 
-                  : 'bg-slate-900 text-slate-300 border-slate-800 hover:bg-slate-800'
-              }`}
-              title="Toggle First-Kana Hint"
-            >
-              <Lightbulb className="w-3.5 h-3.5 text-amber-400" />
-              <span>{t.wordle.hint}</span>
-            </button>
-
-            <button
-              onClick={startNewGame}
-              className="p-1.5 rounded-lg bg-slate-900 text-slate-400 hover:text-white border border-slate-800 hover:bg-slate-800 transition-colors"
-              title={t.wordle.newPuzzle}
-              aria-label={t.wordle.newPuzzle}
-            >
-              <RotateCcw className="w-4 h-4" />
-            </button>
-          </div>
-        </div>
       </div>
 
       {/* Visual Picture Prompt Card — Compact on Mobile so Keyboard Stays in Viewport */}

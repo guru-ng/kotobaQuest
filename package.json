@@ -12,6 +12,7 @@
     "content:fetch": "scripts/fetch-sources.sh",
     "content:build": "tsx scripts/build-content.ts",
     "content:validate": "tsx scripts/validate-content.ts",
+    "content:wordtypes": "tsx scripts/build-wordtypes.ts",
     "test": "tsx --test src/utils/*.test.ts"
   },
   "dependencies": {

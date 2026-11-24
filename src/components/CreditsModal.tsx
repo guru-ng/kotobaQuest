@@ -28,6 +28,13 @@ const SOURCES: Source[] = [
     homeUrl: 'https://www.edrdg.org/wiki/index.php/KANJIDIC_Project'
   },
   {
+    name: 'JMdict — Electronic Dictionary Research and Development Group',
+    what: 'Word types (noun, verb, adjective…) behind the Flashcards and Typing Dojo decks.',
+    licence: 'CC BY-SA 4.0',
+    licenceUrl: 'https://www.edrdg.org/edrdg/licence.html',
+    homeUrl: 'https://www.edrdg.org/wiki/index.php/JMdict-EDICT_Dictionary_Project'
+  },
+  {
     name: 'KanjiVG — Ulrich Apel',
     what: 'Stroke-order paths behind the writing board.',
     licence: 'CC BY-SA 3.0',
