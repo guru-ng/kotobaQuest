@@ -1,5 +1,9 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { VOCAB_LIST } from '../data/vocabData';
+import { useContentPack } from '../data/contentPack';
+import { WORD_TYPES, isWordType, wordTypeOf } from '../data/wordTypes';
+import { useSubview } from '../utils/subview';
+import { ACCENTS, ChoiceTile, PinnedBackBar } from './ChoiceGrid';
 import { NEPALI_VOCAB_MAP } from '../data/nepaliData';
 import { VocabWord } from '../types';
 import { checkTypingProgress, calculateTypingWPM, calculateTypingAccuracy, romajiToHiragana } from '../utils/typingLogic';
@@ -7,20 +11,26 @@ import { useGame } from '../context/GameContext';
 import { getTranslation } from '../utils/i18n';
 import { playTaikoBeat, playSuccessChime, speakJapanese } from '../utils/audio';
 import confetti from 'canvas-confetti';
-import { 
-  Flame, 
-  RotateCcw, 
-  Volume2, 
-  Play
+import {
+  Flame,
+  RotateCcw,
+  Volume2,
+  Play,
+  Keyboard
 } from 'lucide-react';
 
-type DojoCategory = 'all' | 'food' | 'travel' | 'verbs' | 'daily';
+/** The set with every word; the others hold one word type each. */
+const ALL_SET = 'all';
 
 export const TypingDojo: React.FC = () => {
   const { settings, recordTypingScore, currentJLPT, uiLanguage } = useGame();
   const t = getTranslation(uiLanguage);
 
-  const [category, setCategory] = useState<DojoCategory>('food');
+  const { pack, ready } = useContentPack(currentJLPT);
+  // The chosen set lives in ?set= so Back returns to the set grid
+  const { value: setParam, open: openSet, close: closeSet } = useSubview('set');
+  const setId = setParam === ALL_SET || isWordType(setParam) ? setParam : null;
+  const headRef = useRef<HTMLDivElement>(null);
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [isGameOver, setIsGameOver] = useState<boolean>(false);
   
@@ -39,18 +49,30 @@ export const TypingDojo: React.FC = () => {
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
   const getFilteredWords = useCallback(() => {
-    let pool = VOCAB_LIST.filter(w => !currentJLPT || w.jlpt === currentJLPT);
-    if (pool.length === 0) {
-      pool = VOCAB_LIST;
+    let pool = pack.vocab;
+    if (pool.length === 0) pool = VOCAB_LIST;
+    if (setId && setId !== ALL_SET) {
+      const byType = pool.filter(w => wordTypeOf(w) === setId);
+      if (byType.length > 0) pool = byType;
     }
-    if (category !== 'all') {
-      const byCat = pool.filter(w => w.category === category);
-      if (byCat.length > 0) {
-        pool = byCat;
-      }
+    // Fisher-Yates: sort() with a random comparator is biased
+    const out = [...pool];
+    for (let i = out.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [out[i], out[j]] = [out[j], out[i]];
     }
-    return [...pool].sort(() => Math.random() - 0.5);
-  }, [category, currentJLPT]);
+    return out;
+  }, [pack, setId]);
+
+  // Leaving a set (or switching level) ends any game in progress
+  useEffect(() => {
+    setIsPlaying(false);
+    setIsGameOver(false);
+  }, [setId, currentJLPT]);
+
+  const setCounts: Record<string, number> = { [ALL_SET]: pack.vocab.length };
+  for (const w of pack.vocab) setCounts[wordTypeOf(w)] = (setCounts[wordTypeOf(w)] ?? 0) + 1;
+  const setName = (id: string) => t.wordTypes[id as keyof typeof t.wordTypes];
 
   const startGame = useCallback(() => {
     const list = getFilteredWords();
@@ -140,48 +162,75 @@ export const TypingDojo: React.FC = () => {
   const currentWPM = calculateTypingWPM(correctKeystrokes, Math.max(1, elapsedSeconds));
   const accuracy = calculateTypingAccuracy(correctKeystrokes, totalKeystrokes);
 
-  return (
-    <div className="max-w-2xl mx-auto px-2 sm:px-4 py-2 sm:py-4" data-testid="typing-dojo-view">
-      
-      {/* Editorial Header */}
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 sm:gap-4 pb-3 sm:pb-4 border-b border-slate-800/80 mb-4 sm:mb-6">
-        <div className="flex items-baseline justify-between sm:block">
-          <div className="flex items-center gap-2">
-            <h2 className="text-lg sm:text-2xl font-bold text-white tracking-tight">
-              {t.typing.title}
-            </h2>
-            {uiLanguage === 'ja' && (
-              <span className="text-sm font-['Kosugi_Maru'] text-rose-400">
-                タイピング道場
-              </span>
-            )}
-          </div>
-          <div className="flex items-center gap-1.5 text-xs text-slate-400 sm:mt-1">
-            <span className="hidden sm:inline">{t.typing.subtitle} ·</span>
-            <span>{currentJLPT}</span>
-            <span aria-hidden="true">·</span>
-            <span>Romaji / Kana</span>
-          </div>
+  // ------------------------------------------------------------- set grid
+  if (!setId) {
+    return (
+      <div className="max-w-2xl mx-auto px-2 sm:px-4 py-2 sm:py-4" data-testid="typing-dojo-view">
+        <div className="pb-3 sm:pb-4 border-b border-slate-800/80 mb-4 sm:mb-5">
+          <h2 className="text-lg sm:text-2xl font-bold text-white tracking-tight">{t.typing.title}</h2>
+          <p className="text-xs text-slate-400 mt-0.5 sm:mt-1">
+            {t.typing.subtitle} · JLPT {currentJLPT}
+          </p>
         </div>
 
-        {/* Clean Category Segmented Controls */}
-        {!isPlaying && (
-          <div className="flex items-center justify-between sm:justify-start gap-1 bg-slate-900 border border-slate-800 p-0.5 rounded-lg text-xs font-semibold overflow-x-auto">
-            {(['food', 'travel', 'verbs', 'daily', 'all'] as DojoCategory[]).map(cat => (
-              <button
-                key={cat}
-                onClick={() => setCategory(cat)}
-                className={`flex-1 sm:flex-initial px-2.5 py-1 rounded capitalize transition-colors whitespace-nowrap ${
-                  category === cat
-                    ? 'bg-slate-800 text-white font-bold shadow-sm'
-                    : 'text-slate-400 hover:text-slate-200'
-                }`}
-              >
-                {t.categories[cat] || cat}
-              </button>
+        {!ready ? (
+          <div className="bg-slate-900/40 border border-slate-800/80 rounded-2xl p-8 text-center text-sm text-slate-400">
+            {t.flashcards.loading}
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3" data-testid="typing-sets">
+            <ChoiceTile
+              title={setName(ALL_SET)}
+              meta={`${setCounts[ALL_SET].toLocaleString()} ${t.flashcards.words}`}
+              glyph="道"
+              icon={Keyboard}
+              accent={ACCENTS.rose}
+              index={0}
+              onClick={() => openSet(ALL_SET)}
+              testId={`set-${ALL_SET}`}
+              wideClass="col-span-2 sm:col-span-3"
+            />
+            {WORD_TYPES.filter(w => setCounts[w.id]).map((w, i) => (
+              <ChoiceTile
+                key={w.id}
+                title={setName(w.id)}
+                meta={`${setCounts[w.id].toLocaleString()} ${t.flashcards.words}`}
+                glyph={w.glyph}
+                iconText={w.glyph}
+                accent={w.accent}
+                index={i + 1}
+                onClick={() => openSet(w.id)}
+                testId={`set-${w.id}`}
+              />
             ))}
           </div>
         )}
+      </div>
+    );
+  }
+
+  // ------------------------------------------------------------- the dojo
+  return (
+    <div className="max-w-2xl mx-auto px-2 sm:px-4 pb-2 sm:pb-4" data-testid="typing-dojo-view">
+      <PinnedBackBar
+        label={t.typing.allSets}
+        title={setName(setId)}
+        onBack={closeSet}
+        headRef={headRef}
+        testId="set-back"
+      />
+
+      <div ref={headRef} className="pb-3 sm:pb-4 border-b border-slate-800/80 mb-4 sm:mb-6">
+        <h2 className="text-lg sm:text-2xl font-bold text-white tracking-tight" data-testid="set-title">
+          {setName(setId)}
+        </h2>
+        <div className="flex items-center gap-1.5 text-xs text-slate-400 mt-0.5 sm:mt-1">
+          <span>{t.typing.title}</span>
+          <span aria-hidden="true">·</span>
+          <span>JLPT {currentJLPT}</span>
+          <span aria-hidden="true">·</span>
+          <span>{(setCounts[setId] ?? 0).toLocaleString()} {t.flashcards.words}</span>
+        </div>
       </div>
 
       {!isPlaying && !isGameOver ? (
@@ -363,13 +412,10 @@ export const TypingDojo: React.FC = () => {
               <span>{t.typing.playAgain}</span>
             </button>
             <button
-              onClick={() => {
-                setIsGameOver(false);
-                setIsPlaying(false);
-              }}
+              onClick={closeSet}
               className="px-5 py-2.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold text-xs border border-slate-700"
             >
-              {t.typing.backToMenu}
+              {t.typing.allSets}
             </button>
           </div>
         </div>

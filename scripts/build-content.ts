@@ -364,6 +364,19 @@ for (const level of LEVELS) {
 
 let skippedRomaji = 0;
 
+// Word types come from JMdict via scripts/build-wordtypes.ts. Words added since
+// it last ran fall back to a guess and are counted so they can be re-tagged.
+const WORD_TYPES_FILE = join(import.meta.dirname, 'data', 'word-types.json');
+const wordTypes: Record<string, string> = existsSync(WORD_TYPES_FILE)
+  ? JSON.parse(readFileSync(WORD_TYPES_FILE, 'utf8'))
+  : {};
+let untyped = 0;
+const wordTypeOf = (key: string, category: string) => {
+  if (wordTypes[key]) return wordTypes[key];
+  untyped++;
+  return category === 'verbs' ? 'verb' : 'noun';
+};
+
 for (const level of LEVELS) {
   const rows = allVocabByLevel.get(level) ?? [];
 
@@ -386,6 +399,7 @@ for (const level of LEVELS) {
       english: row.meaning,
       jlpt: level,
       category: guessCategory(row.meaning),
+      wordType: wordTypeOf(key, guessCategory(row.meaning)),
       generated: true
     });
   }
@@ -449,5 +463,6 @@ console.log('Generated into', OUT);
 console.log(JSON.stringify(manifest, null, 2));
 console.log(sizes.join('\n'));
 if (skippedRomaji) console.log(`Skipped ${skippedRomaji} vocab entries with unconvertible readings.`);
+if (untyped) console.log(`${untyped} words have no JMdict word type yet; run scripts/build-wordtypes.ts.`);
 if (strokeCountMismatches.length)
   console.log(`Skipped ${strokeCountMismatches.length} kanji with incomplete KanjiVG data: ${strokeCountMismatches.join(', ')}`);

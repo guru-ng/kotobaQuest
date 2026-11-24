@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { romajiToHiragana, checkTypingProgress, calculateTypingWPM, calculateTypingAccuracy } from './typingLogic';
+import { romajiToHiragana, checkTypingProgress, katakanaToHiragana, calculateTypingWPM, calculateTypingAccuracy } from './typingLogic';
 
 test('typing: converts standard romaji to hiragana correctly', () => {
   assert.equal(romajiToHiragana('taberu'), 'たべる');
@@ -89,4 +89,11 @@ test('romaji input: same results as whole-word conversion for every Wordle answe
     }
     assert.equal([...out, ...flushRomajiInput(buffer)].join(''), w.kana, w.romaji);
   }
+});
+
+test('katakana words accept any romaji spelling', () => {
+  assert.equal(katakanaToHiragana('シック'), 'しっく');
+  assert.equal(checkTypingProgress('sikku', 'シック', 'shikku').isComplete, true);
+  assert.equal(checkTypingProgress('shi', 'シック', 'shikku').isPartialMatch, true);
+  assert.equal(checkTypingProgress('kare-', 'カレー', 'kare-').isComplete, true);
 });

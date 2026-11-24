@@ -74,7 +74,14 @@ export const TRANSLATIONS = {
       backToDaily: 'back to daily',
       share: 'Share result',
       copied: 'Copied!',
-      nepaliLocked: 'शब्द पत्ता लगाएपछि नेपाली अर्थ र उदाहरण देखिनेछ।'
+      nepaliLocked: 'शब्द पत्ता लगाएपछि नेपाली अर्थ र उदाहरण देखिनेछ।',
+      allPuzzles: 'All puzzles',
+      solved: 'Solved',
+      missed: 'Missed',
+      notPlayed: 'not played yet',
+      inProgress: 'in progress',
+      randomWord: 'A random word, as many as you like',
+      newBadge: 'New'
     },
     typing: {
       title: 'Typing Dojo',
@@ -93,7 +100,8 @@ export const TRANSLATIONS = {
       wordsCleared: 'Words Cleared',
       accuracy: 'Accuracy',
       playAgain: 'Play Again',
-      backToMenu: 'Back to Menu'
+      backToMenu: 'Back to Menu',
+      allSets: 'All sets'
     },
     kanji: {
       title: 'Kanji Writing Board',
@@ -117,7 +125,13 @@ export const TRANSLATIONS = {
       elements: 'Elements',
       discoveredCharacters: 'Discovered Characters',
       unlocked: 'Unlocked',
-      compounds: 'Compounds'
+      compounds: 'Compounds',
+      allKanji: 'All kanji',
+      continueWith: 'Continue with',
+      startWith: 'Start with',
+      practised: 'practised',
+      allPractised: 'Every kanji practised',
+      strokes: 'strokes'
     },
     flashcards: {
       title: 'Vocab Flashcards',
@@ -147,7 +161,20 @@ export const TRANSLATIONS = {
       practiceShort: 'Practice',
       practiceMode: 'Practice mode: reviews here don\'t change your schedule.',
       backToReviews: 'Back to due cards',
-      loading: 'Loading vocabulary…'
+      loading: 'Loading vocabulary…',
+      todaysReview: "Today's review",
+      allDecks: 'All decks',
+      words: 'words',
+      allCaughtUpShort: 'All caught up'
+    },
+    wordTypes: {
+      noun: 'Nouns',
+      verb: 'Verbs',
+      'i-adj': 'い-adjectives',
+      'na-adj': 'な-adjectives',
+      adverb: 'Adverbs',
+      phrase: 'Phrases & more',
+      all: 'All words'
     },
     survival: {
       title: 'Survival Phrasebook',
@@ -254,7 +281,14 @@ export const TRANSLATIONS = {
       backToDaily: '今日の問題へ',
       share: '結果をシェア',
       copied: 'コピーしました！',
-      nepaliLocked: 'शब्द पत्ता लगाएपछि नेपाली अर्थ र उदाहरण देखिनेछ।'
+      nepaliLocked: 'शब्द पत्ता लगाएपछि नेपाली अर्थ र उदाहरण देखिनेछ।',
+      allPuzzles: 'パズル一覧',
+      solved: 'クリア',
+      missed: '不正解',
+      notPlayed: '未プレイ',
+      inProgress: 'プレイ中',
+      randomWord: 'ランダムな単語で何度でも',
+      newBadge: '新'
     },
     typing: {
       title: 'タイピング道場',
@@ -273,7 +307,8 @@ export const TRANSLATIONS = {
       wordsCleared: 'クリア単語数',
       accuracy: '正確さ',
       playAgain: 'もう一度挑戦',
-      backToMenu: 'メニューに戻る'
+      backToMenu: 'メニューに戻る',
+      allSets: 'セット一覧'
     },
     kanji: {
       title: '漢字の書き方ボード',
@@ -297,7 +332,13 @@ export const TRANSLATIONS = {
       elements: '部首',
       discoveredCharacters: '発見した漢字',
       unlocked: '解放済み',
-      compounds: '熟語'
+      compounds: '熟語',
+      allKanji: '漢字一覧',
+      continueWith: '続き',
+      startWith: 'はじめ',
+      practised: '練習済み',
+      allPractised: 'すべて練習済み',
+      strokes: '画'
     },
     flashcards: {
       title: '単語カード',
@@ -327,7 +368,20 @@ export const TRANSLATIONS = {
       practiceShort: '練習',
       practiceMode: '練習モード：復習スケジュールは変わりません。',
       backToReviews: '復習カードに戻る',
-      loading: '単語を読み込み中…'
+      loading: '単語を読み込み中…',
+      todaysReview: '今日の復習',
+      allDecks: 'デッキ一覧',
+      words: '語',
+      allCaughtUpShort: '復習は完了'
+    },
+    wordTypes: {
+      noun: '名詞',
+      verb: '動詞',
+      'i-adj': 'い形容詞',
+      'na-adj': 'な形容詞',
+      adverb: '副詞',
+      phrase: '表現・その他',
+      all: 'すべての単語'
     },
     survival: {
       title: 'サバイバル日本語',

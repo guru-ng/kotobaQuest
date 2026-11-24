@@ -4,6 +4,9 @@ export type JLPTLevel = 'N5' | 'N4' | 'N3' | 'N2' | 'N1';
 
 export type UILanguage = 'en' | 'ja';
 
+/** Part of speech, from JMdict. Drives the Flashcards and Typing Dojo decks. */
+export type WordType = 'noun' | 'verb' | 'i-adj' | 'na-adj' | 'adverb' | 'phrase';
+
 export interface VocabWord {
   id: string;
   kanji: string;
@@ -12,6 +15,7 @@ export interface VocabWord {
   english: string;
   jlpt: JLPTLevel;
   category: 'food' | 'travel' | 'daily' | 'basics' | 'adjectives' | 'verbs' | 'business' | 'advanced';
+  wordType?: WordType;
   /** Example sentences exist on the hand-written entries; generated ones have none yet. */
   exampleJa?: string;
   exampleKana?: string;

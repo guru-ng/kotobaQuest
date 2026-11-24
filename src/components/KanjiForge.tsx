@@ -5,11 +5,13 @@ import { useGame } from '../context/GameContext';
 import { getTranslation } from '../utils/i18n';
 import { playTaikoBeat, playSuccessChime, speakJapanese } from '../utils/audio';
 import confetti from 'canvas-confetti';
+import { useSubview } from '../utils/subview';
+import { useReducedMotion } from '../utils/useReducedMotion';
+import { ACCENTS, ChoiceTile, PinnedBackBar } from './ChoiceGrid';
 import { 
   RotateCcw, 
   Volume2, 
   ArrowRight,
-  BookOpen,
   Eye,
   EyeOff,
   Compass,
@@ -19,6 +21,17 @@ import {
   Play,
   PenTool
 } from 'lucide-react';
+
+/** Kanji the player has finished on the board, kept across visits. */
+const MASTERED_KEY = 'kq_kanji_mastered';
+const loadMastered = (): string[] => {
+  try {
+    const raw = JSON.parse(localStorage.getItem(MASTERED_KEY) ?? '[]');
+    return Array.isArray(raw) ? raw.filter((x): x is string => typeof x === 'string') : [];
+  } catch {
+    return [];
+  }
+};
 
 interface Point {
   x: number;
@@ -48,8 +61,11 @@ export const KanjiForge: React.FC = () => {
   // ones for this level, ordered by how common the character is.
   const orderedKanjiPool = pack.kanji;
 
-  const [activeIndex, setActiveIndex] = useState<number>(0);
-  const [activeTab, setActiveTab] = useState<'board' | 'codex'>('board');
+  // The open kanji lives in ?k= so Back returns to the kanji grid
+  const { value: kanjiParam, open: openKanji, replace: switchKanji, close: closeKanji } = useSubview('k');
+  const activeIndex = kanjiParam ? orderedKanjiPool.findIndex(k => k.id === kanjiParam) : -1;
+  const headRef = useRef<HTMLDivElement>(null);
+  const reducedMotion = useReducedMotion();
 
   // Coach Mode: Dotted line of the letter for the user to follow
   const [coachEnabled, setCoachEnabled] = useState<boolean>(true);
@@ -64,7 +80,7 @@ export const KanjiForge: React.FC = () => {
   const [activePoints, setActivePoints] = useState<Point[]>([]);
   const [isDrawing, setIsDrawing] = useState<boolean>(false);
   const [isCompleted, setIsCompleted] = useState<boolean>(false);
-  const [masteredIds, setMasteredIds] = useState<string[]>([]);
+  const [masteredIds, setMasteredIds] = useState<string[]>(loadMastered);
   const [strokeHintMessage, setStrokeHintMessage] = useState<string | null>(null);
   const [isAnimatingDemo, setIsAnimatingDemo] = useState<boolean>(false);
 
@@ -73,19 +89,26 @@ export const KanjiForge: React.FC = () => {
   // Placeholder for the first paint before this level's kanji have loaded;
   // the early return below means it never reaches the board.
   const currentItem: KanjiWritingItem =
-    orderedKanjiPool[activeIndex % Math.max(1, orderedKanjiPool.length)] ?? EMPTY_KANJI;
+    orderedKanjiPool[activeIndex] ?? EMPTY_KANJI;
   const totalStrokes = currentItem.strokes.length;
   const activeStrokeStep = currentItem.strokes[Math.min(currentStrokeIdx, totalStrokes - 1)];
 
-  // Reset board when Kanji or JLPT changes
+  // Fresh board whenever a different kanji opens
   useEffect(() => {
-    setActiveIndex(0);
     setCurrentStrokeIdx(0);
     setUserStrokes([]);
     setActivePoints([]);
     setIsCompleted(false);
     setStrokeHintMessage(null);
-  }, [currentJLPT]);
+  }, [currentItem.id]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(MASTERED_KEY, JSON.stringify(masteredIds));
+    } catch {
+      /* storage full or blocked: progress just isn't kept */
+    }
+  }, [masteredIds]);
 
   const resetBoard = useCallback(() => {
     setCurrentStrokeIdx(0);
@@ -96,13 +119,8 @@ export const KanjiForge: React.FC = () => {
   }, []);
 
   const selectKanjiIndex = (idx: number) => {
-    setActiveIndex(idx);
-    setCurrentStrokeIdx(0);
-    setUserStrokes([]);
-    setActivePoints([]);
-    setIsCompleted(false);
-    setStrokeHintMessage(null);
-    setActiveTab('board');
+    const item = orderedKanjiPool[idx];
+    if (item) openKanji(item.id);
   };
 
   // Convert pointer event to 0..100 SVG coordinate space
@@ -230,8 +248,13 @@ export const KanjiForge: React.FC = () => {
     }, 1200);
   };
 
+  // Next kanji replaces this one in history, so Back still goes to the grid
   const handleNextKanji = () => {
-    selectKanjiIndex((activeIndex + 1) % orderedKanjiPool.length);
+    const next = orderedKanjiPool[(activeIndex + 1) % orderedKanjiPool.length];
+    if (next) {
+      switchKanji(next.id);
+      window.scrollTo({ top: 0 });
+    }
   };
 
   // Convert an array of Points into a smooth SVG polyline/path string
@@ -248,95 +271,122 @@ export const KanjiForge: React.FC = () => {
     );
   }
 
+  const nepaliToggle = (
+    <button
+      onClick={toggleNepali}
+      className={`px-2.5 py-1.5 rounded-lg border text-xs font-bold transition-colors whitespace-nowrap ${
+        settings.showNepali
+          ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30'
+          : 'bg-slate-900 text-slate-400 border-slate-800 hover:bg-slate-800'
+      }`}
+      title="Toggle Nepali Meaning (नेपाली अर्थ)"
+    >
+      नेपाली: {settings.showNepali ? 'ON' : 'OFF'}
+    </button>
+  );
+
+  // ------------------------------------------------------------ kanji grid
+  if (activeIndex < 0) {
+    const nextUp = orderedKanjiPool.find(k => !masteredIds.includes(k.id));
+    const practisedHere = orderedKanjiPool.filter(k => masteredIds.includes(k.id)).length;
+    return (
+      <div className="max-w-4xl mx-auto px-2 sm:px-4 py-2 sm:py-4" data-testid="kanji-forge-view">
+        <div className="flex items-start justify-between gap-3 pb-3 sm:pb-4 border-b border-slate-800/80 mb-4 sm:mb-5">
+          <div>
+            <h2 className="text-lg sm:text-2xl font-bold text-white tracking-tight">{t.kanji.title}</h2>
+            <p className="text-xs text-slate-400 mt-0.5 sm:mt-1">
+              JLPT {currentJLPT} · {practisedHere}/{orderedKanjiPool.length} {t.kanji.practised}
+            </p>
+          </div>
+          {nepaliToggle}
+        </div>
+
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-4">
+          <ChoiceTile
+            title={
+              nextUp
+                ? `${practisedHere ? t.kanji.continueWith : t.kanji.startWith} ${nextUp.kanji} · ${nextUp.meaning.split('/')[0].trim()}`
+                : t.kanji.allPractised
+            }
+            meta={`${practisedHere}/${orderedKanjiPool.length} ${t.kanji.practised}`}
+            glyph={(nextUp ?? orderedKanjiPool[0]).kanji}
+            icon={PenTool}
+            accent={ACCENTS.rose}
+            index={0}
+            onClick={() => openKanji((nextUp ?? orderedKanjiPool[0]).id)}
+            testId="kanji-continue"
+            wideClass="col-span-2 sm:col-span-3"
+          />
+        </div>
+
+        <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-2" data-testid="kanji-grid">
+          {orderedKanjiPool.map((item, idx) => {
+            const done = masteredIds.includes(item.id);
+            return (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => selectKanjiIndex(idx)}
+                data-testid={`kanji-tile-${idx}`}
+                title={`${item.kanji} · ${item.meaning}`}
+                style={reducedMotion || idx > 31 ? undefined : { animationDelay: `${(idx + 1) * 18}ms` }}
+                className={`${idx > 31 ? '' : 'kq-rise '}relative rounded-xl border text-center pt-2.5 pb-2 px-1 flex flex-col items-center
+                  active:scale-[.96] transition-[background-color,border-color,transform] duration-150 motion-reduce:transition-none ${
+                    done
+                      ? 'bg-emerald-500/10 border-emerald-500/25 hover:border-emerald-500/50'
+                      : 'bg-slate-900/60 border-slate-800 hover:border-slate-700 hover:bg-slate-900'
+                  }`}
+              >
+                {done && (
+                  <CheckCircle2 className="absolute top-1 right-1 w-3.5 h-3.5 text-emerald-400" aria-label={t.kanji.practised} />
+                )}
+                <span className="text-[26px] leading-none font-bold text-white font-['Kosugi_Maru']">{item.kanji}</span>
+                <span className="mt-1.5 w-full text-[10px] font-semibold text-slate-400 truncate">
+                  {item.meaning.split('/')[0].split(',')[0].trim()}
+                </span>
+                <span className="text-[10px] text-slate-500 tabular-nums">
+                  {item.strokes.length} {t.kanji.strokes}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
+
+  // ----------------------------------------------------------------- board
   return (
-    <div className="max-w-4xl mx-auto px-2 sm:px-4 py-2 sm:py-4" data-testid="kanji-forge-view">
-      
+    <div className="max-w-4xl mx-auto px-2 sm:px-4 pb-2 sm:pb-4" data-testid="kanji-forge-view">
+      <PinnedBackBar
+        label={t.kanji.allKanji}
+        title={`${currentItem.kanji} · ${currentItem.meaning.split('/')[0].trim()}`}
+        onBack={closeKanji}
+        headRef={headRef}
+        testId="kanji-back"
+      />
+
       {/* Editorial Header */}
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 sm:gap-4 pb-3 sm:pb-4 border-b border-slate-800/80 mb-4 sm:mb-5">
-        <div>
-          <div className="flex items-center justify-between sm:justify-start gap-2">
+      <div ref={headRef} className="flex items-start justify-between gap-3 pb-3 sm:pb-4 border-b border-slate-800/80 mb-4 sm:mb-5">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
             <h2 className="text-lg sm:text-2xl font-bold text-white tracking-tight whitespace-nowrap">
-              {uiLanguage === 'ja' ? '漢字書き順ボード' : 'Kanji Writing Board'}
+              {t.kanji.title}
             </h2>
             <span className="text-[11px] font-semibold px-2 py-0.5 rounded bg-rose-500/15 text-rose-400 border border-rose-500/30 whitespace-nowrap">
               {currentItem.level} · {currentItem.Complexity}
             </span>
           </div>
-          <div className="flex items-center justify-between sm:justify-start gap-1.5 text-xs text-slate-400 mt-1">
+          <div className="text-xs text-slate-400 mt-1">
             <span className="truncate">
-              {uiLanguage === 'ja'
-                ? '指やマウスで書き順通りに練習'
-                : 'Write with finger or mouse · Guided stroke order'}
+              {uiLanguage === 'ja' ? '指やマウスで書き順通りに練習' : 'Write with finger or mouse · Guided stroke order'}
             </span>
-            <span aria-hidden="true" className="hidden sm:inline">·</span>
-            <span className="shrink-0 font-medium text-slate-300">{masteredIds.length}/{orderedKanjiPool.length} {t.kanji.mastered}</span>
           </div>
         </div>
-
-        {/* Mode & Nepali Controls */}
-        <div className="flex items-center justify-between sm:justify-end gap-2">
-          <button
-            onClick={toggleNepali}
-            className={`px-2.5 py-1.5 rounded-lg border text-xs font-bold transition-colors whitespace-nowrap ${
-              settings.showNepali
-                ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30'
-                : 'bg-slate-900 text-slate-400 border-slate-800 hover:bg-slate-800'
-            }`}
-            title="Toggle Nepali Meaning (नेपाली अर्थ)"
-          >
-            नेपाली: {settings.showNepali ? 'ON' : 'OFF'}
-          </button>
-
-          <div className="flex items-center gap-1 bg-slate-900 border border-slate-800 p-0.5 rounded-lg text-xs font-semibold">
-            <button
-              onClick={() => setActiveTab('board')}
-              className={`px-2.5 sm:px-3 py-1.5 rounded transition-colors flex items-center gap-1.5 whitespace-nowrap ${
-                activeTab === 'board' ? 'bg-slate-800 text-white font-bold shadow-sm' : 'text-slate-400 hover:text-slate-200'
-              }`}
-            >
-              <PenTool className="w-3.5 h-3.5 text-rose-400" />
-              <span>{uiLanguage === 'ja' ? '練習ボード' : 'Writing Board'}</span>
-            </button>
-            <button
-              onClick={() => setActiveTab('codex')}
-              className={`px-2.5 sm:px-3 py-1.5 rounded transition-colors flex items-center gap-1.5 whitespace-nowrap ${
-                activeTab === 'codex' ? 'bg-slate-800 text-white font-bold shadow-sm' : 'text-slate-400 hover:text-slate-200'
-              }`}
-            >
-              <BookOpen className="w-3.5 h-3.5" />
-              <span>{t.kanji.kanjiCodex}</span>
-            </button>
-          </div>
-        </div>
+        {nepaliToggle}
       </div>
 
-      {/* Quick Kanji Character Selector Bar */}
-      <div className="flex items-center gap-1.5 overflow-x-auto pb-2 mb-4 scrollbar-none">
-        {orderedKanjiPool.map((item, idx) => {
-          const isCurrent = item.id === currentItem.id;
-          const isDone = masteredIds.includes(item.id);
-          return (
-            <button
-              key={item.id}
-              onClick={() => selectKanjiIndex(idx)}
-              className={`px-3 py-1.5 rounded-xl border text-xs font-bold flex items-center gap-2 shrink-0 transition-all ${
-                isCurrent
-                  ? 'bg-rose-500 text-white border-rose-400 shadow-sm'
-                  : 'bg-slate-900/90 text-slate-300 border-slate-800 hover:border-slate-700'
-              }`}
-            >
-              <span className="text-base font-black font-['Kosugi_Maru']">{item.kanji}</span>
-              <span className="text-[11px] opacity-90">{item.meaning.split('/')[0].trim()}</span>
-              <span className="text-[10px] px-1.5 py-0.2 rounded bg-black/20 font-mono">
-                {item.strokes.length}s
-              </span>
-              {isDone && <CheckCircle2 className="w-3.5 h-3.5 text-emerald-300" />}
-            </button>
-          );
-        })}
-      </div>
-
-      {activeTab === 'board' ? (
+      {(
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-6 items-start">
           
           {/* Left Column (7 cols): Interactive Finger Writing Grid Board & Coach Controls */}
@@ -777,52 +827,6 @@ export const KanjiForge: React.FC = () => {
               </div>
             </div>
 
-          </div>
-        </div>
-      ) : (
-        /* Kanji Codex Overview */
-        <div className="bg-slate-900/40 border border-slate-800/80 rounded-2xl p-4 sm:p-6">
-          <div className="flex items-center justify-between text-xs text-slate-400 mb-4 pb-3 border-b border-slate-800">
-            <span className="font-semibold text-white">{t.kanji.discoveredCharacters}</span>
-            <span>{masteredIds.length} of {orderedKanjiPool.length} {t.kanji.mastered}</span>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-            {orderedKanjiPool.map((item, idx) => {
-              const isUnlocked = masteredIds.includes(item.id);
-              return (
-                <div
-                  key={item.id}
-                  onClick={() => selectKanjiIndex(idx)}
-                  className="p-3.5 rounded-xl border bg-slate-900/80 border-slate-800 hover:border-rose-500/40 transition-colors cursor-pointer flex items-center gap-3.5"
-                >
-                  <div className="w-12 h-12 rounded-xl bg-rose-500/10 text-rose-300 border border-rose-500/20 flex items-center justify-center text-2xl font-black font-['Kosugi_Maru'] shrink-0">
-                    {item.kanji}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center justify-between">
-                      <h4 className="text-xs font-bold text-white truncate">
-                        {item.meaning}
-                      </h4>
-                      <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-950 text-slate-400">
-                        {item.level}
-                      </span>
-                    </div>
-                    {settings.showNepali && item.meaningNe && (
-                      <div className="text-[11px] text-emerald-400 truncate mt-0.5">
-                        {item.meaningNe}
-                      </div>
-                    )}
-                    <div className="flex items-center justify-between text-[11px] text-slate-500 mt-1">
-                      <span>{item.strokes.length} Strokes · {item.Complexity}</span>
-                      {isUnlocked && (
-                        <span className="text-emerald-400 font-semibold">✓ Practiced</span>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
           </div>
         </div>
       )}

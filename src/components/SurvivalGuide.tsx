@@ -1,16 +1,17 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { SURVIVAL_CATEGORIES, SurvivalCategory } from '../data/survivalPhrases';
 import { NEPALI_SURVIVAL_MAP } from '../data/nepaliData';
 import { useGame } from '../context/GameContext';
 import { getTranslation } from '../utils/i18n';
 import { speakJapanese } from '../utils/audio';
 import { useReducedMotion } from '../utils/useReducedMotion';
+import { useSubview } from '../utils/subview';
+import { ACCENTS, Accent, ChoiceTile, PinnedBackBar } from './ChoiceGrid';
 import {
   Volume2,
   Copy,
   Check,
   Search,
-  ChevronLeft,
   Briefcase,
   Sparkles,
   Utensils,
@@ -34,28 +35,17 @@ const ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
   UtensilsCrossed
 };
 
-/**
- * Per-category look, in the same style as the home tiles: a large faded
- * character behind the tile plus an accent colour. Tailwind only ships class
- * names it can see written out, so each one is spelled in full.
- */
-const LOOK: Record<string, { glyph: string; text: string; tint: string }> = {
-  business: { glyph: '職', text: 'text-sky-400', tint: 'bg-sky-500/15' },
-  teinei: { glyph: '礼', text: 'text-purple-400', tint: 'bg-purple-500/15' },
-  dining: { glyph: '食', text: 'text-amber-400', tint: 'bg-amber-500/15' },
-  transit: { glyph: '駅', text: 'text-emerald-400', tint: 'bg-emerald-500/15' },
-  konbini: { glyph: '店', text: 'text-pink-400', tint: 'bg-pink-500/15' },
-  polite: { glyph: '助', text: 'text-rose-400', tint: 'bg-rose-500/15' },
-  restaurant: { glyph: '接', text: 'text-orange-400', tint: 'bg-orange-500/15' }
+/** Per-category look, in the same style as the home tiles. */
+const LOOK: Record<string, { glyph: string; accent: Accent }> = {
+  business: { glyph: '職', accent: ACCENTS.sky },
+  teinei: { glyph: '礼', accent: ACCENTS.purple },
+  dining: { glyph: '食', accent: ACCENTS.amber },
+  transit: { glyph: '駅', accent: ACCENTS.emerald },
+  konbini: { glyph: '店', accent: ACCENTS.pink },
+  polite: { glyph: '助', accent: ACCENTS.rose },
+  restaurant: { glyph: '接', accent: ACCENTS.orange }
 };
-const DEFAULT_LOOK = { glyph: '話', text: 'text-slate-300', tint: 'bg-slate-500/15' };
-
-/** The open category lives in ?cat= so the back button and shared links work. */
-function categoryFromUrl(): string | null {
-  if (typeof window === 'undefined') return null;
-  const id = new URLSearchParams(window.location.search).get('cat');
-  return SURVIVAL_CATEGORIES.some(c => c.id === id) ? id : null;
-}
+const DEFAULT_LOOK = { glyph: '話', accent: ACCENTS.slate };
 
 export const SurvivalGuide: React.FC = () => {
   const { settings, uiLanguage, toggleNepali } = useGame();
@@ -63,61 +53,17 @@ export const SurvivalGuide: React.FC = () => {
   const ja = uiLanguage === 'ja';
   const reducedMotion = useReducedMotion();
 
-  const [catId, setCatId] = useState<string | null>(categoryFromUrl);
+  // The open category lives in ?cat= so the back button and shared links work
+  const { value: catId, open: openSub, close: closeCategory } = useSubview('cat');
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState<string>('');
-
-  // Browser back/forward moves between the grid and a category
-  useEffect(() => {
-    const onPop = () => setCatId(categoryFromUrl());
-    window.addEventListener('popstate', onPop);
-    return () => window.removeEventListener('popstate', onPop);
-  }, []);
+  const headRef = useRef<HTMLDivElement>(null);
 
   const activeCategory = catId ? SURVIVAL_CATEGORIES.find(c => c.id === catId) ?? null : null;
 
-  // In a list, the back bar stays pinned under the top bar. Once the big
-  // heading has scrolled under it, the bar shows the situation's name too.
-  const barRef = useRef<HTMLDivElement>(null);
-  const headRef = useRef<HTMLDivElement>(null);
-  const [compact, setCompact] = useState(false);
-  useEffect(() => {
-    if (!activeCategory) return;
-    const check = () => {
-      const bar = barRef.current?.getBoundingClientRect();
-      const head = headRef.current?.getBoundingClientRect();
-      if (bar && head) setCompact(head.bottom <= bar.bottom);
-    };
-    check();
-    window.addEventListener('scroll', check, { passive: true });
-    window.addEventListener('resize', check);
-    return () => {
-      window.removeEventListener('scroll', check);
-      window.removeEventListener('resize', check);
-    };
-  }, [activeCategory]);
-
   const openCategory = (id: string) => {
-    const url = new URL(window.location.href);
-    url.searchParams.set('cat', id);
-    window.history.pushState({ kqCat: id }, '', url);
-    setCatId(id);
     setSearchQuery('');
-    window.scrollTo({ top: 0 });
-  };
-
-  const closeCategory = () => {
-    // Opened from the grid: step back so history doesn't pile up.
-    // Opened from a shared link: there is nothing to step back to.
-    if (window.history.state?.kqCat) {
-      window.history.back();
-    } else {
-      const url = new URL(window.location.href);
-      url.searchParams.delete('cat');
-      window.history.replaceState(null, '', url);
-      setCatId(null);
-    }
-    window.scrollTo({ top: 0 });
+    openSub(id);
   };
 
   const handleCopy = (id: string, text: string) => {
@@ -169,7 +115,7 @@ export const SurvivalGuide: React.FC = () => {
           {(phrase.register || category) && (
             <div className="text-[11px] font-semibold text-rose-400 mb-1">
               {category && (
-                <span className={`${(LOOK[category.id] ?? DEFAULT_LOOK).text}`}>
+                <span className={(LOOK[category.id] ?? DEFAULT_LOOK).accent.text}>
                   {ja ? category.titleJa : category.title}
                   {phrase.register ? ' · ' : ''}
                 </span>
@@ -245,37 +191,17 @@ export const SurvivalGuide: React.FC = () => {
     const Icon = ICONS[activeCategory.icon] ?? Compass;
     return (
       <div className="max-w-2xl mx-auto px-2 sm:px-4 pb-2 sm:pb-4" data-testid="survival-guide-view">
-        <div
-          ref={barRef}
-          data-testid="phrase-back-bar"
-          style={{ top: 'var(--kq-nav-h, 57px)' }}
-          className={`sticky z-30 -mx-2 sm:-mx-4 px-2 sm:px-4 py-2 mb-2 bg-slate-950/90 backdrop-blur-md border-b transition-colors duration-200 motion-reduce:transition-none ${
-            compact ? 'border-slate-800/80' : 'border-transparent'
-          }`}
-        >
-          <div className="flex items-center gap-3 min-w-0">
-            <button
-              onClick={closeCategory}
-              data-testid="phrase-back"
-              className="flex items-center gap-1 h-9 pl-1.5 pr-3 rounded-full border border-slate-800 bg-slate-900/80 text-xs font-semibold text-slate-300 hover:text-white hover:border-slate-700 shrink-0 transition-colors"
-            >
-              <ChevronLeft className="w-4 h-4" />
-              {t.survival.allSituations}
-            </button>
-            <span
-              aria-hidden={!compact}
-              className={`text-sm font-bold text-white truncate transition-opacity duration-200 motion-reduce:transition-none ${
-                compact ? 'opacity-100' : 'opacity-0'
-              }`}
-            >
-              {ja ? activeCategory.titleJa : activeCategory.title}
-            </span>
-          </div>
-        </div>
+        <PinnedBackBar
+          label={t.survival.allSituations}
+          title={ja ? activeCategory.titleJa : activeCategory.title}
+          onBack={closeCategory}
+          headRef={headRef}
+          testId="phrase-back"
+        />
 
         <div ref={headRef} className="flex items-start gap-3 pb-4 border-b border-slate-800/80 mb-4 sm:mb-5">
-          <span className={`w-11 h-11 rounded-xl ${look.tint} flex items-center justify-center shrink-0`}>
-            <Icon className={`w-5 h-5 ${look.text}`} />
+          <span className={`w-11 h-11 rounded-xl ${look.accent.tint} flex items-center justify-center shrink-0`}>
+            <Icon className={`w-5 h-5 ${look.accent.text}`} />
           </span>
           <div className="flex-1 min-w-0">
             <h2 className="text-lg sm:text-2xl font-bold text-white tracking-tight">
@@ -344,44 +270,19 @@ export const SurvivalGuide: React.FC = () => {
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3" data-testid="phrase-categories">
           {SURVIVAL_CATEGORIES.map((cat, i) => {
             const look = LOOK[cat.id] ?? DEFAULT_LOOK;
-            const Icon = ICONS[cat.icon] ?? Compass;
-            const wide = lastIsWide && i === count - 1;
             return (
-              <button
+              <ChoiceTile
                 key={cat.id}
+                title={ja ? cat.titleJa : cat.title}
+                meta={`${cat.phrases.length} ${t.survival.phrases}`}
+                glyph={look.glyph}
+                icon={ICONS[cat.icon] ?? Compass}
+                accent={look.accent}
+                index={i}
                 onClick={() => openCategory(cat.id)}
-                data-testid={`phrase-cat-${cat.id}`}
-                style={reducedMotion ? undefined : { animationDelay: `${i * 45}ms` }}
-                className={`kq-rise relative overflow-hidden rounded-2xl bg-slate-900/60 border border-slate-800 text-left p-4 flex
-                  hover:border-slate-700 hover:bg-slate-900 active:scale-[.97]
-                  transition-[background-color,border-color,transform] duration-150 motion-reduce:transition-none ${
-                    wide
-                      ? 'col-span-2 sm:col-span-3 items-center gap-3.5 h-[86px]'
-                      : 'flex-col justify-between h-[136px]'
-                  }`}
-              >
-                <span
-                  aria-hidden="true"
-                  className={`absolute font-['Kosugi_Maru'] leading-none select-none opacity-[0.11] text-[72px] ${look.text} ${
-                    wide ? 'right-3 -bottom-5' : '-right-1 -bottom-4'
-                  }`}
-                >
-                  {look.glyph}
-                </span>
-
-                <span className={`w-8 h-8 rounded-[10px] ${look.tint} flex items-center justify-center shrink-0`}>
-                  <Icon className={`w-[17px] h-[17px] ${look.text}`} />
-                </span>
-
-                <span className="relative">
-                  <span className="block text-[15px] font-bold text-white leading-snug">
-                    {ja ? cat.titleJa : cat.title}
-                  </span>
-                  <span className="block text-xs font-semibold text-slate-400 mt-1">
-                    {cat.phrases.length} {t.survival.phrases}
-                  </span>
-                </span>
-              </button>
+                testId={`phrase-cat-${cat.id}`}
+                wideClass={lastIsWide && i === count - 1 ? 'col-span-2 sm:col-span-3' : undefined}
+              />
             );
           })}
         </div>
