@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { GameProvider, useGame } from './context/GameContext';
 import { Navbar } from './components/Navbar';
 import { SUBVIEW_PARAM } from './utils/subview';
+import { hideSplash } from './utils/splash';
 import { WordleGame } from './components/WordleGame';
 import { TypingDojo } from './components/TypingDojo';
 import { KanjiForge } from './components/KanjiForge';
@@ -38,6 +39,11 @@ const MainApp: React.FC = () => {
     typeof navigator !== 'undefined' ? !navigator.onLine : false
   );
   const t = getTranslation(uiLanguage);
+
+  // The app has drawn: let the launch animation finish and fade out
+  useEffect(() => {
+    hideSplash();
+  }, []);
 
   useEffect(() => {
     registerServiceWorker(apply => setApplyUpdate(() => apply));
